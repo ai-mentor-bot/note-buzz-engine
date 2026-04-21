@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOTE BUZZ ENGINE</title>
+<style>
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Courier New', Courier, monospace;
+  background: #0c0c0c;
+  color: #e0e0e0;
+  font-size: 12px;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ===== LAYOUT ===== */
+.app {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  grid-template-rows: 48px 1fr 34px;
+  height: 100vh;
+}
+
+/* ===== TOPBAR ===== */
+.topbar {
+  grid-column: 1 / -1;
+  background: #111;
+  border-bottom: 1px solid #222;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+}
+.logo {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: #ccc;
+  white-space: nowrap;
+}
+.logo em { color: #e84040; font-style: normal; }
+.v-tag {
+  font-size: 8px;
+  color: #333;
+  letter-spacing: 2px;
+  padding: 2px 6px;
+  border: 1px solid #222;
+}
+
+/* Plan toggle */
+.plan-toggle { display: flex; border: 1px solid #2a2a2a; margin-left: 8px; }
+.plan-btn {
+  background: #1a1a1a;
+  border: none;
+  color: #555;
+  padding: 4px 12px;
+  font-size: 9px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+}
+.plan-btn.active-free { background: #0d0d22; color: #5577ee; }
+.plan-btn.active-paid { background: #1e1500; color: #ddaa22; }
+
+/* Level badge */
+.level-badge {
+  font-size: 9px;
+  letter-spacing: 2px;
+  padding: 3px 10px;
+  border: 1px solid #222;
+  background: #111;
+}
+.lv1 { color: #4488ff; border-color: #223; }
+.lv2 { color: #44cc88; border-color: #132; }
+.lv3 { color: #ddaa22; border-color: #332; }
+.lv4 { color: #ee7733; border-color: #321; }
+.lv5 { color: #ee3355; border-color: #311; }
+
+/* Quote indicator */
+.quote-ind {
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 3px 10px;
+  background: #191300;
+  border: 1px solid #2a2100;
+  color: #997711;
+  transition: all .2s;
+}
+.quote-ind.ready {
+  background: #0f1900;
+  border-color: #2a4400;
+  color: #88cc22;
+  animation: blink .8s ease-in-out infinite;
+}
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+
+.yr-tag {
+  margin-left: auto;
+  font-size: 9px;
+  letter-spacing: 2px;
+  padding: 3px 10px;
+  background: #0a1a0a;
+  border: 1px solid #1a3a1a;
+  color: #44aa44;
+}
+
+/* ===== SIDEBAR ===== */
+.sidebar {
+  background: #111;
+  border-right: 1px solid #1e1e1e;
+  padding: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.sec-label {
+  font-size: 8px;
+  letter-spacing: 3px;
+  color: #444;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+/* Buttons */
+.btn-row { display: flex; flex-direction: column; gap: 3px; }
+.btn-sm {
+  background: #1a1a1a;
+  border: 1px solid #252525;
+  color: #888;
+  padding: 5px 8px;
+  font-size: 10px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: all .12s;
+  width: 100%;
+}
+.btn-sm:hover { border-color: #3a3a3a; color: #ccc; }
+.btn-sm.active { background: #1e0808; border-color: #e84040; color: #e84040; }
+
+/* Type grid */
+.type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+.type-btn {
+  background: #1a1a1a;
+  border: 1px solid #252525;
+  color: #777;
+  padding: 6px 4px;
+  font-size: 9px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .12s;
+  line-height: 1.4;
+  text-align: center;
+}
+.type-btn:hover { border-color: #3a3a3a; color: #ccc; }
+.type-btn.active { background: #091809; border-color: #44aa44; color: #66cc66; }
+.type-btn .sub {
+  font-size: 7px;
+  color: #444;
+  display: block;
+  margin-top: 2px;
+}
+.type-btn.active .sub { color: #337733; }
+
+/* Persona grid */
+.pgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+.pbtn {
+  background: #1a1a1a;
+  border: 1px solid #252525;
+  color: #777;
+  padding: 4px;
+  font-size: 9px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .12s;
+  text-align: center;
+}
+.pbtn:hover { border-color: #3a3a3a; color: #ccc; }
+.pbtn.active { background: #090921; border-color: #4466cc; color: #6688ee; }
+
+/* Inputs */
+input.kw-input, select.aff-select {
+  width: 100%;
+  background: #161616;
+  border: 1px solid #252525;
+  color: #ccc;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-family: inherit;
+  outline: none;
+  transition: border .12s;
+}
+input.kw-input:focus { border-color: #444; }
+select.aff-select {
+  color: #aaa;
+  font-size: 10px;
+  cursor: pointer;
+  -webkit-appearance: none;
+}
+
+/* Generate button */
+.gen-btn {
+  width: 100%;
+  background: #e84040;
+  border: none;
+  color: #fff;
+  padding: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+  margin-top: auto;
+}
+.gen-btn:hover { background: #ff5555; }
+.gen-btn:disabled { background: #3a1a1a; color: #555; cursor: not-allowed; }
+.gen-btn.loading { animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+
+/* History */
+.hist-pill {
+  display: inline-block;
+  background: #1a1a1a;
+  border: 1px solid #222;
+  color: #555;
+  padding: 2px 6px;
+  font-size: 8px;
+  margin: 2px;
+  cursor: default;
+}
+
+/* ===== MAIN ===== */
+.main {
+  background: #0c0c0c;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #1e1e1e;
+  background: #0f0f0f;
+}
+.tab {
+  padding: 10px 16px;
+  font-size: 9px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  color: #444;
+  border: none;
+  background: none;
+  font-family: inherit;
+  border-bottom: 2px solid transparent;
+  transition: all .12s;
+}
+.tab:hover { color: #888; }
+.tab.active { color: #e0e0e0; border-bottom-color: #e84040; }
+
+/* Preview area */
+.preview {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  scrollbar-width: thin;
+  scrollbar-color: #222 transparent;
+}
+
+/* Empty state */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+}
+.empty-big { font-size: 32px; letter-spacing: 12px; color: #1a1a1a; }
+.empty-sub { font-size: 9px; letter-spacing: 3px; color: #2a2a2a; }
+
+/* Quote card */
+.quote-card {
+  background: #141200;
+  border: 1px solid #2a2400;
+  border-left: 3px solid #e8a020;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+.quote-who { font-size: 8px; color: #886600; letter-spacing: 2px; margin-bottom: 5px; }
+.quote-text { font-size: 11px; color: #ccaa44; line-height: 1.7; font-style: italic; }
+.quote-src { font-size: 8px; color: #554400; margin-top: 5px; }
+.quote-verify {
+  display: inline-block;
+  background: #3a2000;
+  color: #aa6600;
+  font-size: 7px;
+  padding: 1px 5px;
+  margin-left: 6px;
+  letter-spacing: 1px;
+}
+
+/* Article preview */
+.art-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.5;
+  border-left: 3px solid #e84040;
+  padding: 4px 12px;
+  margin-bottom: 12px;
+  flex: 1;
+}
+.art-meta {
+  font-size: 9px;
+  color: #444;
+  margin-bottom: 14px;
+  letter-spacing: 1px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.plan-tag {
+  font-size: 8px;
+  padding: 2px 7px;
+  letter-spacing: 1px;
+}
+.plan-tag.free { background: #0d0d22; color: #4455cc; border: 1px solid #1a1a33; }
+.plan-tag.paid { background: #1e1400; color: #ccaa22; border: 1px solid #332a00; }
+
+.art-body p { color: #bbb; font-size: 11px; margin-bottom: 10px; line-height: 1.9; }
+.art-h2 { font-size: 12px; font-weight: 700; color: #ddd; margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 1px solid #1e1e1e; }
+.art-step { background: #0a160a; border-left: 3px solid #44aa44; padding: 7px 10px; margin: 7px 0; font-size: 11px; color: #88cc88; line-height: 1.6; }
+.art-li { padding: 2px 0 2px 12px; border-left: 2px solid #2a2a2a; color: #bbb; font-size: 11px; margin-bottom: 4px; }
+.art-pro-tip {
+  background: #1a1500;
+  border: 1px solid #2a2200;
+  padding: 8px 12px;
+  margin: 10px 0;
+  font-size: 11px;
+  color: #ccaa44;
+  line-height: 1.7;
+}
+.art-pro-tip::before {
+  content: '▶ PRO TIP';
+  font-size: 8px;
+  color: #886600;
+  letter-spacing: 2px;
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* X posts */
+.x-post {
+  background: #0f0f0f;
+  border: 1px solid #1e1e1e;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+}
+.x-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.x-num { font-size: 8px; color: #444; letter-spacing: 2px; }
+.x-chars { font-size: 8px; }
+.x-text { font-size: 11px; color: #ccc; line-height: 1.7; }
+
+/* Copy buttons */
+.copy-btn {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  color: #555;
+  padding: 2px 8px;
+  font-size: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .12s;
+  white-space: nowrap;
+}
+.copy-btn:hover { color: #aaa; border-color: #444; }
+.copy-btn.ok { color: #55aa55; border-color: #2a4a2a; }
+.all-copy {
+  width: 100%;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  color: #888;
+  padding: 8px;
+  font-size: 9px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+  margin-top: 6px;
+}
+.all-copy:hover { border-color: #555; color: #ccc; }
+
+/* ===== STATUS BAR ===== */
+.statusbar {
+  grid-column: 1 / -1;
+  background: #0f0f0f;
+  border-top: 1px solid #1e1e1e;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 16px;
+  font-size: 8px;
+  color: #444;
+  letter-spacing: 2px;
+}
+.s-dot { width: 5px; height: 5px; border-radius: 50%; background: #2a2a2a; }
+.s-dot.on { background: #44aa44; box-shadow: 0 0 5px #44aa44; }
+.s-dot.err { background: #e84040; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="logo">NOTE BUZZ <em>ENGINE</em></div>
+    <div class="v-tag">v2.1</div>
+    <div class="plan-toggle">
+      <button class="plan-btn active-free" id="planFree" onclick="setPlan('free')">FREE</button>
+      <button class="plan-btn" id="planPaid" onclick="setPlan('paid')">PAID</button>
+    </div>
+    <div class="level-badge lv1" id="lvBadge">LV.1 — 入門</div>
+    <div class="quote-ind" id="quoteInd">引用: あと<span id="quoteCnt">?</span>回</div>
+    <div class="yr-tag" id="yrTag">----</div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div>
+      <div class="sec-label">ブランド</div>
+      <div class="btn-row">
+        <button class="btn-sm active" data-group="brand" data-val="bread_burger" onclick="pickBtn(this,'brand')">Bread Burger</button>
+        <button class="btn-sm" data-group="brand" data-val="pitapizza" onclick="pickBtn(this,'brand')">ピタピザ</button>
+        <button class="btn-sm" data-group="brand" data-val="custom" onclick="pickBtn(this,'brand')">カスタム</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec-label">記事タイプ</div>
+      <div class="type-grid">
+        <button class="type-btn" data-val="lmn" onclick="pickType(this)">LMN最強<span class="sub">拡散×保存</span></button>
+        <button class="type-btn" data-val="comparison" onclick="pickType(this)">比較・選び型<span class="sub">購買直前層</span></button>
+        <button class="type-btn active" data-val="guide" onclick="pickType(this)">まとめ型<span class="sub">保存率高</span></button>
+        <button class="type-btn" data-val="trending" onclick="pickType(this)">トレンド型<span class="sub">時事×拡散</span></button>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec-label">メインキーワード</div>
+      <input class="kw-input" id="kw" type="text" placeholder="例: AI副業 初心者 月5万" />
+    </div>
+
+    <div>
+      <div class="sec-label">ターゲット読者</div>
+      <div class="pgrid">
+        <button class="pbtn active" data-group="persona" data-val="副業初心者" onclick="pickBtn(this,'persona')">副業初心者</button>
+        <button class="pbtn" data-group="persona" data-val="副業中級者" onclick="pickBtn(this,'persona')">副業中級者</button>
+        <button class="pbtn" data-group="persona" data-val="主婦・育児中" onclick="pickBtn(this,'persona')">主婦・育児中</button>
+        <button class="pbtn" data-group="persona" data-val="学生・20代" onclick="pickBtn(this,'persona')">学生・20代</button>
+        <button class="pbtn" data-group="persona" data-val="クリエイター" onclick="pickBtn(this,'persona')">クリエイター</button>
+        <button class="pbtn" data-group="persona" data-val="飲食業従事者" onclick="pickBtn(this,'persona')">飲食業従事者</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="sec-label">アフィリエイト軸</div>
+      <select class="aff-select" id="aff">
+        <option>AIツール（Claude/ChatGPT等）</option>
+        <option>副業・ビジネス教材</option>
+        <option>飲食・フード関連</option>
+        <option>ガジェット・ツール</option>
+        <option>書籍・コンテンツ</option>
+      </select>
+    </div>
+
+    <div id="histSec" style="display:none">
+      <div class="sec-label">直近の生成</div>
+      <div id="histList"></div>
+    </div>
+
+    <button class="gen-btn" id="genBtn" onclick="generate()">▶ GENERATE</button>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab(this,'article')">■ 記事</button>
+      <button class="tab" onclick="switchTab(this,'x')">✕ X投稿セット</button>
+    </div>
+    <div class="preview" id="preview">
+      <div class="empty-state">
+        <div class="empty-big">ENGINE</div>
+        <div class="empty-sub">キーワードを入力して生成を実行</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUS BAR -->
+  <div class="statusbar">
+    <div class="s-dot" id="sDot"></div>
+    <span id="sTxt">READY</span>
+    <span>■ 文字数 <span id="wcSt">0</span></span>
+    <span>■ 生成 <span id="gcSt">0</span>回</span>
+    <span>■ LV <span id="lvSt">1</span></span>
+  </div>
+
+</div>
+
+<script>
+// ===== CONSTANTS =====
+const SK = 'nbe_v2';
+const CY = new Date().getFullYear();
+
+const HOOKS = [
+  '問題提起型（「〜で悩んでいませんか？」から始める）',
+  '体験談型（著者の失敗談から入る）',
+  '数字インパクト型（冒頭に具体的な数字を入れる）',
+  '逆説型（「実は〜ではない」から始める）',
+  '質問型（読者への問いかけから始める）'
+];
+const ANGLES = [
+  'AI初心者目線で解説する',
+  '飲食店オーナーとして日々の業務での活用を交える',
+  '失敗から学んだ視点を主軸にする',
+  'ツール比較・コスト視点で進める',
+  '時間効率化・スキマ時間活用の視点で進める'
+];
+const STRUCTURES = [
+  'PREP法（結論→理由→具体例→結論）',
+  'SDS法（要約→詳細→要約）',
+  '問題→解決→結果の3段構成',
+  'ビフォーアフター構成',
+  'ステップバイステップ構成'
+];
+const LV_INFO = [
+  { lv: 1, tag: 'LV.1 — 入門', cls: 'lv1', days: [0, 3] },
+  { lv: 2, tag: 'LV.2 — 実践', cls: 'lv2', days: [4, 7] },
+  { lv: 3, tag: 'LV.3 — 応用', cls: 'lv3', days: [8, 14] },
+  { lv: 4, tag: 'LV.4 — 収益化', cls: 'lv4', days: [15, 21] },
+  { lv: 5, tag: 'LV.5 — 上級', cls: 'lv5', days: [22, Infinity] }
+];
+
+// ===== STATE =====
+function defSt() {
+  return {
+    plan: 'free', brand: 'bread_burger', type: 'guide', persona: '副業初心者',
+    hist: [], totalGens: 0,
+    firstDate: Date.now(),
+    nextQuoteAt: randQ()
+  };
+}
+function randQ() { return 3 + Math.floor(Math.random() * 4); }
+
+let st = (() => {
+  try { return JSON.parse(localStorage.getItem(SK)) || defSt(); }
+  catch { return defSt(); }
+})();
+
+function saveSt() {
+  try { localStorage.setItem(SK, JSON.stringify(st)); } catch {}
+}
+
+let curTab = 'article';
+let lastResult = null;
+
+// ===== INIT =====
+document.getElementById('yrTag').textContent = CY + '年';
+updateLvBadge();
+updateQuoteInd();
+updateHistList();
+setPlan(st.plan);
+
+// ===== HELPERS =====
+function getLevel() {
+  const days = (Date.now() - st.firstDate) / 86400000;
+  return LV_INFO.find(l => days >= l.days[0] && days <= l.days[1]) || LV_INFO[4];
+}
+
+function updateLvBadge() {
+  const lv = getLevel();
+  const el = document.getElementById('lvBadge');
+  el.textContent = lv.tag;
+  el.className = 'level-badge ' + lv.cls;
+  document.getElementById('lvSt').textContent = lv.lv;
+}
+
+function updateQuoteInd() {
+  const rem = st.nextQuoteAt - st.totalGens;
+  document.getElementById('quoteCnt').textContent = Math.max(0, rem);
+  document.getElementById('quoteInd').className =
+    'quote-ind' + (rem <= 0 ? ' ready' : '');
+}
+
+function updateHistList() {
+  const sec = document.getElementById('histSec');
+  const list = document.getElementById('histList');
+  if (!st.hist.length) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  list.innerHTML = st.hist.slice(-6).reverse()
+    .map(h => `<span class="hist-pill">${esc(h.title?.slice(0, 16) + '…')}</span>`)
+    .join('');
+}
+
+function pickVariation() {
+  const usedHooks = st.hist.slice(-5).map(h => h.hook);
+  const usedAngles = st.hist.slice(-5).map(h => h.angle);
+  let hook = HOOKS[Math.floor(Math.random() * HOOKS.length)];
+  let angle = ANGLES[Math.floor(Math.random() * ANGLES.length)];
+  const str = STRUCTURES[Math.floor(Math.random() * STRUCTURES.length)];
+  if (usedHooks.includes(hook)) hook = HOOKS[Math.floor(Math.random() * HOOKS.length)];
+  if (usedAngles.includes(angle)) angle = ANGLES[Math.floor(Math.random() * ANGLES.length)];
+  return { hook, angle, str };
+}
+
+function setPlan(p) {
+  st.plan = p;
+  document.getElementById('planFree').className = 'plan-btn' + (p === 'free' ? ' active-free' : '');
+  document.getElementById('planPaid').className = 'plan-btn' + (p === 'paid' ? ' active-paid' : '');
+  saveSt();
+}
+
+function pickBtn(el, group) {
+  document.querySelectorAll(`[data-group="${group}"]`).forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  st[group] = el.dataset.val;
+  saveSt();
+}
+
+function pickType(el) {
+  document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  st.type = el.dataset.val;
+  saveSt();
+}
+
+function switchTab(el, tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  curTab = tab;
+  renderPreview();
+}
+
+function setStatus(s, txt) {
+  document.getElementById('sDot').className = 's-dot' + (s === 'on' ? ' on' : s === 'err' ? ' err' : '');
+  document.getElementById('sTxt').textContent = txt;
+}
+
+// ===== GENERATE =====
+async function generate() {
+  const kw = document.getElementById('kw').value.trim();
+  if (!kw) { document.getElementById('kw').focus(); return; }
+
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  btn.textContent = '■ GENERATING...';
+  btn.classList.add('loading');
+  setStatus('on', 'GENERATING');
+
+  const lv = getLevel();
+  const useQuote = st.totalGens >= st.nextQuoteAt;
+  const { hook, angle, str } = pickVariation();
+  const recentTitles = st.hist.slice(-5).map(h => h.title).filter(Boolean);
+
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        keyword: kw,
+        brand: st.brand,
+        articleType: st.type,
+        persona: st.persona,
+        affiliate: document.getElementById('aff').value,
+        plan: st.plan,
+        level: lv.lv,
+        hook, angle,
+        structure: str,
+        recentTitles,
+        useQuote,
+        currentYear: CY
+      })
+    });
+
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'Unknown error');
+
+    const d = json.data;
+    lastResult = { ...d, plan: st.plan, hook, angle };
+
+    st.totalGens += 1;
+    st.hist.push({ title: d.title, hook, angle, date: Date.now() });
+    if (st.hist.length > 12) st.hist = st.hist.slice(-12);
+    if (useQuote) st.nextQuoteAt = st.totalGens + randQ();
+    saveSt();
+
+    const wc = (d.article || '').replace(/\s/g, '').length;
+    document.getElementById('wcSt').textContent = wc.toLocaleString();
+    document.getElementById('gcSt').textContent = st.totalGens;
+    updateQuoteInd();
+    updateHistList();
+    setStatus('on', 'DONE — ' + st.type.toUpperCase() + (d.quote ? ' + QUOTE' : ''));
+    renderPreview();
+  } catch (err) {
+    console.error(err);
+    setStatus('err', 'ERROR: ' + err.message.slice(0, 40));
+  }
+
+  btn.disabled = false;
+  btn.textContent = '▶ GENERATE';
+  btn.classList.remove('loading');
+}
+
+// ===== RENDER =====
+function renderPreview() {
+  if (!lastResult) return;
+  const el = document.getElementById('preview');
+
+  if (curTab === 'article') {
+    let html = '';
+
+    // Quote card
+    if (lastResult.quote) {
+      html += `<div class="quote-card">
+        <div class="quote-who">▶ ${esc(lastResult.quote.person || '')} / ${esc(lastResult.quote.role || '')}
+          <span class="quote-verify">要確認</span>
+        </div>
+        <div class="quote-text">"${esc(lastResult.quote.text || '')}"</div>
+        <div class="quote-src">${esc(lastResult.quote.source || '')}</div>
+      </div>`;
+    }
+
+    // Title + copy
+    html += `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:10px">
+      <div class="art-title">${esc(lastResult.title || '')}</div>
+      <button class="copy-btn" onclick="cpText(${JSON.stringify(lastResult.article)},this)">COPY</button>
+    </div>`;
+
+    // Meta
+    html += `<div class="art-meta">
+      <span>${new Date().getFullYear()}/${pad(new Date().getMonth()+1)}/${pad(new Date().getDate())}</span>
+      <span class="plan-tag ${lastResult.plan}">${lastResult.plan === 'paid' ? '有料記事' : '無料記事'}</span>
+      <span>${(lastResult.article || '').replace(/\s/g, '').length}字</span>
+    </div>`;
+
+    // Body
+    html += '<div class="art-body">';
+    (lastResult.article || '').split('\n').forEach(line => {
+      if (!line.trim()) { html += '<div style="height:6px"></div>'; return; }
+      if (line.match(/^#{1,3}\s/) || line.match(/^【.+】$/) || line.match(/^■/)) {
+        html += `<div class="art-h2">${esc(line.replace(/^#+\s*/, ''))}</div>`;
+      } else if (line.match(/^STEP\s*\d|^Step\s*\d/i)) {
+        html += `<div class="art-step">${esc(line)}</div>`;
+      } else if (line.match(/^[・\-\*]\s/)) {
+        html += `<div class="art-li">${esc(line.replace(/^[・\-\*]\s/, ''))}</div>`;
+      } else if (line.includes('【PRO TIP】') || (lastResult.plan === 'paid' && line.match(/具体的.{0,10}設定|プロンプト.*字|月.*円/))) {
+        html += `<div class="art-pro-tip">${esc(line.replace('【PRO TIP】', ''))}</div>`;
+      } else {
+        html += `<p>${esc(line)}</p>`;
+      }
+    });
+    html += '</div>';
+    el.innerHTML = html;
+
+  } else {
+    // X posts
+    let html = '';
+    (lastResult.xPosts || []).forEach((post, i) => {
+      const len = post.replace(/\s/g, '').length;
+      const col = len > 135 ? '#cc4444' : len > 120 ? '#ccaa22' : '#444';
+      html += `<div class="x-post">
+        <div class="x-hdr">
+          <span class="x-num">POST ${i + 1} / 5</span>
+          <span class="x-chars" style="color:${col}">${len} / 140</span>
+          <button class="copy-btn" onclick="cpText(${JSON.stringify(post)},this)">COPY</button>
+        </div>
+        <div class="x-text">${esc(post)}</div>
+      </div>`;
+    });
+    const all = (lastResult.xPosts || []).join('\n\n---\n\n');
+    html += `<button class="all-copy" onclick="cpText(${JSON.stringify(all)},this)">■ スレッド全文コピー</button>`;
+    el.innerHTML = html;
+  }
+}
+
+// ===== UTILS =====
+function cpText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓ COPIED';
+    btn.classList.add('ok');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('ok'); }, 2000);
+  });
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function pad(n) { return String(n).padStart(2, '0'); }
+</script>
+</body>
+</html>
