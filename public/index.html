@@ -213,6 +213,81 @@ body {
   font-weight: 700;
 }
 
+.cost-tag {
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 5px 10px;
+  background: #fff1ec;
+  border: 1px solid #ffcd9c;
+  color: #d44a18;
+  border-radius: 6px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+.cost-tag:hover { background: #ff6a3d; color: white; border-color: #ff6a3d; }
+
+.hero-image {
+  width: 100%;
+  max-width: 600px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  display: block;
+  border: 1px solid #e5e7ee;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.image-actions {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.dup-warning {
+  background: #fff5e0;
+  border: 1px solid #fbe1a0;
+  border-left: 4px solid #e8a020;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #8a4420;
+  margin-bottom: 14px;
+  line-height: 1.6;
+}
+.dup-warning b { color: #b57700; }
+
+.cost-modal {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.cost-modal.show { display: flex; }
+.cost-modal-body {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  min-width: 380px;
+  max-width: 480px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+}
+.cost-modal h3 { font-size: 13px; letter-spacing: 2px; margin-bottom: 16px; color: #2a2a3e; }
+.cost-modal table { width: 100%; font-size: 11px; }
+.cost-modal td { padding: 6px 4px; border-bottom: 1px solid #f0f1f5; }
+.cost-modal td.r { text-align: right; color: #d44a18; font-weight: 700; }
+.cost-modal .big { font-size: 24px; color: #ff4466; font-weight: 800; margin: 10px 0; }
+
+.feat-badge {
+  font-size: 8px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.feat-on { background: #ecfdf3; color: #0d8c4c; }
+.feat-off { background: #ffecec; color: #c4104b; }
+
 /* ===== SIDEBAR ===== */
 .sidebar {
   background: #ffffff;
@@ -708,6 +783,8 @@ select.aff-select {
     </div>
 
     <div class="yr-tag" id="yrTag">----</div>
+
+    <div class="cost-tag" id="costTag" title="累計API使用量">¥0</div>
   </div>
 
   <!-- SIDEBAR -->
@@ -743,9 +820,14 @@ select.aff-select {
     <div>
       <div class="sec-label">オプション</div>
       <div class="toggle-row">
+        <button class="toggle-chip on" id="optImage" onclick="toggleOpt('image')">🎨 画像</button>
         <button class="toggle-chip" id="optReview" onclick="toggleOpt('review')">🔁 復習回</button>
         <button class="toggle-chip" id="optMeta" onclick="toggleOpt('meta')">📮 進行加筆</button>
       </div>
+      <div class="toggle-row" style="margin-top:4px">
+        <button class="toggle-chip" id="optXpost" onclick="postToX()" title="Xに自動投稿（要API設定）">✕ Xに投稿</button>
+      </div>
+      <div id="featStatus" style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap"></div>
     </div>
 
     <div id="trendTagsSec">
@@ -773,11 +855,25 @@ select.aff-select {
       <button class="tab active" onclick="switchTab(this,'article')">■ 記事</button>
       <button class="tab" onclick="switchTab(this,'x')">✕ X投稿セット</button>
       <button class="tab" onclick="switchTab(this,'trend')" id="trendTab">🌐 トレンドログ</button>
+      <button class="tab" onclick="switchTab(this,'history')">📚 履歴</button>
     </div>
     <div class="preview" id="preview">
       <div class="empty-state">
         <div class="empty-big">ENGINE</div>
         <div class="empty-sub">キーワードを入力して生成を実行</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COST MODAL -->
+  <div class="cost-modal" id="costModal" onclick="if(event.target===this)closeCost()">
+    <div class="cost-modal-body">
+      <h3>💰 API使用量サマリー</h3>
+      <div class="big" id="costBig">¥0</div>
+      <table id="costTable"></table>
+      <div style="margin-top:14px;display:flex;justify-content:space-between;gap:8px">
+        <button class="copy-btn" onclick="refreshCosts()">再計算</button>
+        <button class="copy-btn" onclick="closeCost()">閉じる</button>
       </div>
     </div>
   </div>
@@ -813,6 +909,7 @@ function defSt() {
     hist: { ai_main: [], store: [], affi_seminar: [] },
     totalGens: 0,
     useTrend: false,
+    useImage: true,
     forceReview: false,
     forceMeta: false,
     nextQuoteAt: randQ()
@@ -835,6 +932,7 @@ let curTab = 'article';
 let lastResult = null;
 let accountDirectory = null;
 let levelsFromServer = null;
+let features = { image: false, xAutoPost: false, xMetrics: false, auth: false };
 
 // ===== BOOT =====
 document.getElementById('yrTag').textContent = CY + '年';
@@ -843,20 +941,41 @@ setPlan(st.plan, false);
 
 (async function boot() {
   try {
-    const res = await fetch('/api/accounts');
-    const json = await res.json();
+    const [accRes, featRes, costRes] = await Promise.all([
+      fetch('/api/accounts'), fetch('/api/features'), fetch('/api/costs')
+    ]);
+    const json = await accRes.json();
     accountDirectory = json.accounts;
     levelsFromServer = json.levels;
+    features = await featRes.json();
+    const costs = await costRes.json();
+    document.getElementById('costTag').textContent = '¥' + (costs.total.jpy || 0).toLocaleString();
   } catch {
     accountDirectory = null;
   }
+  renderFeatureStatus();
   setAccount(st.account, false);
   refreshLevelUI();
   updateQuoteInd();
   updateHistList();
   checkMetaHint();
   refreshTrendTags(false);
+
+  // Sync image option based on state
+  document.getElementById('optImage').className = 'toggle-chip' + (st.useImage ? ' on' : '');
 })();
+
+function renderFeatureStatus() {
+  const el = document.getElementById('featStatus');
+  const fs = [
+    { label: '画像', on: features.image },
+    { label: 'X投稿', on: features.xAutoPost },
+    { label: '認証', on: features.auth }
+  ];
+  el.innerHTML = fs.map(f =>
+    `<span class="feat-badge ${f.on ? 'feat-on' : 'feat-off'}">${f.on ? '✓' : '✕'} ${f.label}</span>`
+  ).join('');
+}
 
 async function refreshTrendTags(force) {
   const btn = document.getElementById('refreshTagsBtn');
@@ -1002,7 +1121,165 @@ function toggleOpt(key) {
     st.forceMeta = !st.forceMeta;
     document.getElementById('optMeta').className = 'toggle-chip' + (st.forceMeta ? ' on' : '');
   }
+  if (key === 'image') {
+    st.useImage = !st.useImage;
+    document.getElementById('optImage').className = 'toggle-chip' + (st.useImage ? ' on' : '');
+  }
   saveSt();
+}
+
+// ===== COSTS =====
+async function openCost() {
+  document.getElementById('costModal').classList.add('show');
+  await refreshCosts();
+}
+function closeCost() { document.getElementById('costModal').classList.remove('show'); }
+
+async function refreshCosts() {
+  try {
+    const res = await fetch('/api/costs');
+    const j = await res.json();
+    document.getElementById('costBig').textContent = '¥' + (j.total.jpy || 0).toLocaleString();
+    document.getElementById('costTag').textContent = '¥' + (j.total.jpy || 0).toLocaleString();
+    const rows = [
+      ['24時間以内', '¥' + (j.last24h.jpy || 0).toLocaleString()],
+      ['30日以内', '¥' + (j.last30d.jpy || 0).toLocaleString()],
+      ['累計コール数', j.total.calls + '回'],
+      ['為替レート', '$1 = ¥' + j.usd_jpy]
+    ];
+    let tbl = rows.map(r => `<tr><td>${r[0]}</td><td class="r">${r[1]}</td></tr>`).join('');
+    tbl += '<tr><td colspan="2" style="padding-top:10px;color:#6a7090;font-size:9px;letter-spacing:2px">━━ 種類別 ━━</td></tr>';
+    tbl += j.byKind.map(k => `<tr><td>${k.kind} <span style="color:#9097b0">(${k.n})</span></td><td class="r">¥${(k.jpy || 0).toLocaleString()}</td></tr>`).join('');
+    document.getElementById('costTable').innerHTML = tbl;
+  } catch (e) {
+    document.getElementById('costTable').innerHTML = '<tr><td>取得失敗</td></tr>';
+  }
+}
+
+document.getElementById('costTag').addEventListener('click', openCost);
+
+// ===== X POST =====
+async function postToX() {
+  if (!features.xAutoPost) {
+    alert('X API keys が未設定です。\n.env に X_APP_KEY / X_APP_SECRET / X_ACCESS_TOKEN / X_ACCESS_TOKEN_SECRET を設定してください。');
+    return;
+  }
+  if (!lastResult?.xPosts?.length) {
+    alert('先に記事を生成してください。');
+    return;
+  }
+  if (!confirm(`${lastResult.accountHandle} として${lastResult.xPosts.length}個のポストをスレッドで投稿します。実行しますか？`)) return;
+
+  const btn = document.getElementById('optXpost');
+  btn.textContent = '投稿中...';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/post-to-x', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        articleId: lastResult.articleId,
+        posts: lastResult.xPosts,
+        imageUrl: lastResult.imageUrl
+      })
+    });
+    const j = await res.json();
+    if (j.success) {
+      if (confirm(`投稿成功！\n\n投稿したスレッド:\n${j.threadUrl}\n\nXで開きますか？`)) window.open(j.threadUrl, '_blank');
+    } else {
+      alert('投稿失敗: ' + (j.error || 'unknown'));
+    }
+  } catch (e) {
+    alert('投稿失敗: ' + e.message);
+  }
+  btn.textContent = '✕ Xに投稿';
+  btn.disabled = false;
+}
+
+// ===== IMAGE REGEN =====
+async function regenerateImage() {
+  if (!features.image) {
+    alert('OPENAI_API_KEY が未設定です。');
+    return;
+  }
+  if (!lastResult?.articleId) return;
+  const customPrompt = prompt('画像プロンプトを編集（空欄で自動再生成）:', lastResult.imagePrompt || '');
+  if (customPrompt === null) return;
+
+  try {
+    const res = await fetch('/api/regenerate-image', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ articleId: lastResult.articleId, customPrompt: customPrompt || null })
+    });
+    const j = await res.json();
+    if (j.imageUrl) {
+      lastResult.imageUrl = j.imageUrl;
+      lastResult.imagePrompt = j.prompt;
+      renderPreview();
+      refreshCosts();
+    } else {
+      alert('再生成失敗: ' + (j.error || ''));
+    }
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+// ===== HISTORY =====
+async function loadHistory() {
+  const el = document.getElementById('preview');
+  el.innerHTML = '<div style="padding:40px;text-align:center;color:#9097b0">読込中...</div>';
+  try {
+    const res = await fetch(`/api/articles?account=${st.account}&limit=30`);
+    const j = await res.json();
+    if (!j.articles?.length) {
+      el.innerHTML = `<div class="empty-state"><div class="empty-big">HISTORY</div><div class="empty-sub">このアカウントでの生成履歴なし</div></div>`;
+      return;
+    }
+    el.innerHTML = j.articles.map(a => {
+      const date = new Date(a.createdAt);
+      return `<div class="x-post" style="cursor:pointer" onclick="loadArticle(${a.id})">
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          ${a.imageUrl ? `<img src="${esc(a.imageUrl)}" style="width:80px;height:80px;object-fit:cover;border-radius:6px;flex-shrink:0">` : ''}
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:12px;margin-bottom:4px">${esc(a.title || '(no title)')}</div>
+            <div style="font-size:10px;color:#9097b0">
+              DAY ${a.day} / LV.${a.level} / ${a.plan} — ${esc(a.keyword || '')}
+            </div>
+            <div style="font-size:9px;color:#9097b0;margin-top:2px">
+              ${date.getFullYear()}/${pad(date.getMonth()+1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = '<div style="padding:40px;color:#cc3344">取得失敗</div>';
+  }
+}
+
+async function loadArticle(id) {
+  try {
+    const res = await fetch('/api/articles/' + id);
+    const a = await res.json();
+    lastResult = {
+      articleId: a.id,
+      title: a.title, article: a.article,
+      xPosts: a.x_posts, hashtags: a.hashtags,
+      plan: a.plan, dayNumber: a.day, level: a.level,
+      levelTag: `LV.${a.level}`, seriesLabel: `DAY ${a.day} / LV.${a.level}`,
+      accountHandle: accountDirectory?.[a.account]?.handle || '',
+      imageUrl: a.image_url,
+      reviewMode: a.meta?.reviewMode,
+      trendFetched: a.meta?.trendFetched,
+      affiliateLinks: [],
+      trendingTags: []
+    };
+    // switch to article tab
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelector('.tab').classList.add('active');
+    curTab = 'article';
+    renderPreview();
+  } catch (e) { alert(e.message); }
 }
 
 function setPlan(p, save = true) {
@@ -1023,7 +1300,8 @@ function switchTab(el, tab) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
   curTab = tab;
-  renderPreview();
+  if (tab === 'history') loadHistory();
+  else renderPreview();
 }
 
 function setStatus(s, txt) {
@@ -1084,6 +1362,7 @@ async function generate() {
         recentTitles,
         useQuote,
         useTrend: st.useTrend,
+        useImage: st.useImage,
         forceReview: st.forceReview,
         metaInsertion: st.forceMeta ? (st._metaHint || null) : null,
         currentYear: CY
@@ -1108,8 +1387,9 @@ async function generate() {
     document.getElementById('gcSt').textContent = st.totalGens;
     updateQuoteInd();
     updateHistList();
-    setStatus('on', `DONE — ${d.levelTag}${d.reviewMode ? ' [REVIEW]' : ''}${d.trendFetched ? ' +TREND' : ''}`);
+    setStatus('on', `DONE — ${d.levelTag}${d.reviewMode ? ' [REVIEW]' : ''}${d.trendFetched ? ' +TREND' : ''}${d.imageUrl ? ' +IMG' : ''}`);
     renderPreview();
+    refreshCosts();
   } catch (err) {
     console.error(err);
     setStatus('err', 'ERROR: ' + err.message.slice(0, 60));
@@ -1127,6 +1407,22 @@ function renderPreview() {
 
   if (curTab === 'article') {
     let html = '';
+
+    if (lastResult.duplicateWarning) {
+      const sim = Math.round(lastResult.duplicateWarning.similarity * 100);
+      html += `<div class="dup-warning">⚠️ <b>類似記事検出（${sim}%）</b>：過去に「${esc(lastResult.duplicateWarning.title || '')}」という記事があります。被る場合は再生成を推奨。</div>`;
+    }
+
+    if (lastResult.imageUrl) {
+      html += `<img class="hero-image" src="${esc(lastResult.imageUrl)}" alt="hero">`;
+      html += `<div class="image-actions">
+        <button class="copy-btn" onclick="regenerateImage()">🎨 画像再生成</button>
+        <button class="copy-btn" onclick="window.open('${esc(lastResult.imageUrl)}', '_blank')">原寸で開く</button>
+        <button class="copy-btn" onclick='cpText(${JSON.stringify(lastResult.imageUrl || "")},this)'>URLコピー</button>
+      </div>`;
+    } else if (lastResult.imageAvailable === false && st.useImage) {
+      html += `<div class="dup-warning" style="background:#eef2ff;border-color:#4f6af5;color:#2949d8">ℹ️ OPENAI_API_KEY未設定のため画像生成スキップ中（.envに設定すると自動添付されます）</div>`;
+    }
 
     if (lastResult.reviewMode) {
       html += `<div class="review-banner">🔁 復習回モード — 前レベルの内容を別角度で再提示しています</div>`;

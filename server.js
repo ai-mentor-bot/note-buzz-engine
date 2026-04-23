@@ -1,15 +1,222 @@
 require('dotenv').config();
+const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
+const basicAuth = require('express-basic-auth');
 const Anthropic = require('@anthropic-ai/sdk');
+const OpenAI = require('openai');
+const { TwitterApi } = require('twitter-api-v2');
+const Database = require('better-sqlite3');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// =======================================================
+// CLIENTS (graceful degradation — missing keys = feature off)
+// =======================================================
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const HAS_OPENAI = !!process.env.OPENAI_API_KEY;
+const openai = HAS_OPENAI ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+
+const HAS_X_API = !!(process.env.X_APP_KEY && process.env.X_APP_SECRET && process.env.X_ACCESS_TOKEN && process.env.X_ACCESS_TOKEN_SECRET);
+const xClient = HAS_X_API ? new TwitterApi({
+  appKey: process.env.X_APP_KEY,
+  appSecret: process.env.X_APP_SECRET,
+  accessToken: process.env.X_ACCESS_TOKEN,
+  accessSecret: process.env.X_ACCESS_TOKEN_SECRET
+}) : null;
+
+// =======================================================
+// SQLite PERSISTENCE
+// =======================================================
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data.sqlite');
+const db = new Database(DB_PATH);
+db.pragma('journal_mode = WAL');
+db.exec(`
+CREATE TABLE IF NOT EXISTS articles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account TEXT NOT NULL,
+  day INTEGER,
+  level INTEGER,
+  plan TEXT,
+  keyword TEXT,
+  title TEXT,
+  article TEXT,
+  x_posts TEXT,
+  hashtags TEXT,
+  image_url TEXT,
+  embedding TEXT,
+  meta TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_articles_account ON articles(account);
+CREATE INDEX IF NOT EXISTS idx_articles_created ON articles(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS costs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts INTEGER NOT NULL,
+  provider TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  in_tokens INTEGER DEFAULT 0,
+  out_tokens INTEGER DEFAULT 0,
+  units REAL DEFAULT 0,
+  usd REAL NOT NULL,
+  meta TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_costs_ts ON costs(ts DESC);
+
+CREATE TABLE IF NOT EXISTS x_metrics (
+  article_id INTEGER,
+  tweet_id TEXT PRIMARY KEY,
+  impressions INTEGER DEFAULT 0,
+  likes INTEGER DEFAULT 0,
+  retweets INTEGER DEFAULT 0,
+  replies INTEGER DEFAULT 0,
+  fetched_at INTEGER NOT NULL
+);
+`);
+
+// =======================================================
+// COST TRACKING — 単価（USD）※2026/04時点の公表値ベース
+// =======================================================
+const RATES = {
+  claude_sonnet_4_in: 3 / 1_000_000,      // $3/M in
+  claude_sonnet_4_out: 15 / 1_000_000,    // $15/M out
+  anthropic_web_search: 0.01,             // $0.01/search
+  dalle3_standard_1024: 0.04,             // $0.04/image
+  openai_embed_small: 0.02 / 1_000_000,   // $0.02/M tokens
+  usd_jpy: parseFloat(process.env.USD_JPY || '150')
+};
+
+function trackCost({ provider, kind, inTokens = 0, outTokens = 0, units = 0, usd, meta = null }) {
+  if (typeof usd !== 'number' || !isFinite(usd)) return;
+  db.prepare(`INSERT INTO costs(ts, provider, kind, in_tokens, out_tokens, units, usd, meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(Date.now(), provider, kind, inTokens, outTokens, units, usd, meta ? JSON.stringify(meta) : null);
+}
+
+function claudeCost(usage, webSearchCount = 0) {
+  const inT = usage?.input_tokens || 0;
+  const outT = usage?.output_tokens || 0;
+  const usd = inT * RATES.claude_sonnet_4_in + outT * RATES.claude_sonnet_4_out + webSearchCount * RATES.anthropic_web_search;
+  return { usd, inT, outT };
+}
+
+// =======================================================
+// PASSWORD AUTH (optional)
+// =======================================================
+const APP_PASSWORD = process.env.APP_PASSWORD;
+const APP_USER = process.env.APP_USER || 'kotaro';
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+if (APP_PASSWORD) {
+  app.use((req, res, next) => {
+    if (req.path === '/favicon.svg' || req.path === '/favicon.ico') return next();
+    return basicAuth({
+      users: { [APP_USER]: APP_PASSWORD },
+      challenge: true,
+      realm: 'NoteBuzzEngine'
+    })(req, res, next);
+  });
+  console.log('[auth] password protection ENABLED');
+} else {
+  console.log('[auth] APP_PASSWORD not set — running OPEN (set it before deploying to Render)');
+}
 app.use(express.static('public'));
+
+// =======================================================
+// IMAGE GENERATION (DALL-E 3)
+// =======================================================
+async function generateImagePromptFromArticle({ title, articleExcerpt, accountId }) {
+  const style = accountId === 'store'
+    ? '高級感ある商品写真・食欲をそそるライティング・マクロ撮影・スタジオフォト調'
+    : 'モダン・ミニマル・フラットイラスト・テクノロジー感・温かみのある色味（オレンジ＋ブルー系）・テキストレス';
+
+  const system = `あなたはXの投稿画像デザイナーです。記事タイトルと抜粋から、インパクトのあるヒーロー画像用のDALL-E 3プロンプトを英語で作成してください。画像にテキストは入れないでください（AIの文字生成は失敗するため）。出力はプロンプト本文のみ、説明は不要です。`;
+  const user = `タイトル: ${title}\n抜粋: ${articleExcerpt.slice(0, 400)}\nスタイル: ${style}\n\nDALL-E 3用プロンプトを180字以内の英語で出力:`;
+
+  try {
+    const msg = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 400,
+      system,
+      messages: [{ role: 'user', content: user }]
+    });
+    const prompt = (msg.content || []).map(c => c.text || '').join(' ').trim();
+    const cost = claudeCost(msg.usage);
+    trackCost({ provider: 'anthropic', kind: 'image-prompt-gen', inTokens: cost.inT, outTokens: cost.outT, usd: cost.usd });
+    return prompt;
+  } catch (e) {
+    return `Modern flat illustration for article titled "${title}". Tech vibe, orange and blue palette, no text.`;
+  }
+}
+
+async function generateHeroImage({ title, articleExcerpt, accountId }) {
+  if (!HAS_OPENAI) return null;
+  try {
+    const prompt = await generateImagePromptFromArticle({ title, articleExcerpt, accountId });
+    const resp = await openai.images.generate({
+      model: 'dall-e-3',
+      prompt,
+      n: 1,
+      size: '1024x1024',
+      quality: 'standard',
+      response_format: 'url'
+    });
+    const url = resp.data?.[0]?.url;
+    const revisedPrompt = resp.data?.[0]?.revised_prompt || prompt;
+    trackCost({ provider: 'openai', kind: 'dalle3', units: 1, usd: RATES.dalle3_standard_1024, meta: { prompt: prompt.slice(0, 200) } });
+    return { url, prompt, revisedPrompt };
+  } catch (e) {
+    console.warn('[image-gen] failed:', e.message);
+    return null;
+  }
+}
+
+// =======================================================
+// SEMANTIC DEDUP (OpenAI embeddings + cosine similarity)
+// =======================================================
+async function getEmbedding(text) {
+  if (!HAS_OPENAI) return null;
+  try {
+    const resp = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: text.slice(0, 8000)
+    });
+    const embedding = resp.data?.[0]?.embedding;
+    const tokens = resp.usage?.total_tokens || 0;
+    trackCost({ provider: 'openai', kind: 'embed', inTokens: tokens, usd: tokens * RATES.openai_embed_small });
+    return embedding;
+  } catch (e) {
+    console.warn('[embed] failed:', e.message);
+    return null;
+  }
+}
+
+function cosineSim(a, b) {
+  if (!a || !b || a.length !== b.length) return 0;
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  return dot / (Math.sqrt(na) * Math.sqrt(nb) || 1);
+}
+
+function findSimilarRecent(account, embedding, threshold = 0.85, limit = 30) {
+  if (!embedding) return [];
+  const rows = db.prepare(`SELECT id, title, embedding, created_at FROM articles WHERE account = ? AND embedding IS NOT NULL ORDER BY created_at DESC LIMIT ?`).all(account, limit);
+  const hits = [];
+  for (const r of rows) {
+    try {
+      const emb = JSON.parse(r.embedding);
+      const sim = cosineSim(embedding, emb);
+      if (sim >= threshold) hits.push({ id: r.id, title: r.title, similarity: sim, created_at: r.created_at });
+    } catch {}
+  }
+  return hits.sort((a, b) => b.similarity - a.similarity);
+}
 
 // =======================================================
 // TRENDING HASHTAG CACHE — 6hキャッシュでコスト抑制
@@ -59,6 +266,10 @@ async function refreshTrendingTags(accountId, force = false) {
 
     cache.tags = parsed.filter(p => p.tag && p.tag.startsWith('#')).slice(0, 20);
     cache.fetchedAt = now;
+
+    const cost = claudeCost(msg.usage, 2);
+    trackCost({ provider: 'anthropic', kind: 'trending-tags', inTokens: cost.inT, outTokens: cost.outT, usd: cost.usd, meta: { account: accountId } });
+
     return cache.tags;
   } catch (err) {
     console.warn('[trending-tags] failed:', err.message);
@@ -404,6 +615,9 @@ async function fetchForeignTrend(keyword) {
       .map(b => b.text)
       .join('\n\n');
 
+    const cost = claudeCost(msg.usage, 3);
+    trackCost({ provider: 'anthropic', kind: 'trend-fetch', inTokens: cost.inT, outTokens: cost.outT, usd: cost.usd });
+
     return textBlocks || null;
   } catch (err) {
     console.warn('[trend-fetch] skipped:', err.message);
@@ -427,6 +641,7 @@ app.post('/api/generate', async (req, res) => {
     recentTitles = [],
     useQuote = false,
     useTrend = false,
+    useImage = true,
     forceReview = false,
     metaInsertion = null,
     currentYear
@@ -509,10 +724,44 @@ app.post('/api/generate', async (req, res) => {
       .trim();
     const parsed = JSON.parse(clean);
 
+    const genCost = claudeCost(message.usage);
+    trackCost({ provider: 'anthropic', kind: 'article-gen', inTokens: genCost.inT, outTokens: genCost.outT, usd: genCost.usd, meta: { account, keyword } });
+
+    // Semantic dedup check
+    const embedText = `${parsed.title || ''}\n${(parsed.article || '').slice(0, 1200)}`;
+    const embedding = await getEmbedding(embedText);
+    const similar = findSimilarRecent(account, embedding, 0.86, 30);
+    const dupWarning = similar.length ? similar[0] : null;
+
+    // Hero image (parallel after Claude gen)
+    let image = null;
+    if (useImage && HAS_OPENAI) {
+      image = await generateHeroImage({
+        title: parsed.title || keyword,
+        articleExcerpt: parsed.article || '',
+        accountId: account
+      });
+    }
+
+    // Persist
+    const insertStmt = db.prepare(`INSERT INTO articles(account, day, level, plan, keyword, title, article, x_posts, hashtags, image_url, embedding, meta, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    const info = insertStmt.run(
+      account, day, lv.lv, plan, keyword,
+      parsed.title || null,
+      parsed.article || null,
+      JSON.stringify(parsed.xPosts || []),
+      JSON.stringify(parsed.hashtags || []),
+      image?.url || null,
+      embedding ? JSON.stringify(embedding) : null,
+      JSON.stringify({ hook: selHook, angle: selAngle, structure: selStructure, reviewMode, metaInsertion: !!metaInsertion, trendFetched }),
+      Date.now()
+    );
+
     res.json({
       success: true,
       data: {
         ...parsed,
+        articleId: info.lastInsertRowid,
         account,
         accountLabel: acc.label,
         accountHandle: acc.handle,
@@ -528,7 +777,11 @@ app.post('/api/generate', async (req, res) => {
         structure: selStructure,
         affiliateLinks: affiliateLinks.map(l => ({ label: l.label, url: l.url })),
         trendingTags: trendingTags.map(t => t.tag),
-        trendingTagsFull: trendingTags
+        trendingTagsFull: trendingTags,
+        imageUrl: image?.url || null,
+        imagePrompt: image?.revisedPrompt || null,
+        duplicateWarning: dupWarning,
+        imageAvailable: HAS_OPENAI
       }
     });
   } catch (err) {
@@ -596,4 +849,172 @@ app.get('/api/accounts', (req, res) => {
   res.json({ accounts: out, levels: LEVELS });
 });
 
-app.listen(PORT, () => console.log(`NOTE BUZZ ENGINE v3.0 running on port ${PORT}`));
+// =======================================================
+// COST SUMMARY ENDPOINT
+// =======================================================
+app.get('/api/costs', (req, res) => {
+  const nowMs = Date.now();
+  const dayAgo = nowMs - 24 * 60 * 60 * 1000;
+  const monthAgo = nowMs - 30 * 24 * 60 * 60 * 1000;
+
+  const total = db.prepare(`SELECT COALESCE(SUM(usd), 0) AS usd, COUNT(*) AS n FROM costs`).get();
+  const today = db.prepare(`SELECT COALESCE(SUM(usd), 0) AS usd FROM costs WHERE ts >= ?`).get(dayAgo);
+  const month = db.prepare(`SELECT COALESCE(SUM(usd), 0) AS usd FROM costs WHERE ts >= ?`).get(monthAgo);
+  const byKind = db.prepare(`SELECT kind, COALESCE(SUM(usd), 0) AS usd, COUNT(*) AS n FROM costs GROUP BY kind ORDER BY usd DESC`).all();
+
+  const jpy = (u) => Math.round(u * RATES.usd_jpy);
+  res.json({
+    usd_jpy: RATES.usd_jpy,
+    total: { usd: total.usd, jpy: jpy(total.usd), calls: total.n },
+    last24h: { usd: today.usd, jpy: jpy(today.usd) },
+    last30d: { usd: month.usd, jpy: jpy(month.usd) },
+    byKind: byKind.map(r => ({ ...r, jpy: jpy(r.usd) }))
+  });
+});
+
+// =======================================================
+// ARTICLES HISTORY ENDPOINT
+// =======================================================
+app.get('/api/articles', (req, res) => {
+  const account = req.query.account;
+  const limit = Math.min(100, parseInt(req.query.limit) || 20);
+  const params = [];
+  let where = '';
+  if (account) { where = 'WHERE account = ?'; params.push(account); }
+  const rows = db.prepare(`SELECT id, account, day, level, plan, keyword, title, image_url, created_at, meta FROM articles ${where} ORDER BY created_at DESC LIMIT ?`).all(...params, limit);
+  res.json({
+    articles: rows.map(r => ({
+      id: r.id, account: r.account, day: r.day, level: r.level, plan: r.plan,
+      keyword: r.keyword, title: r.title, imageUrl: r.image_url,
+      createdAt: r.created_at, meta: r.meta ? JSON.parse(r.meta) : null
+    }))
+  });
+});
+
+app.get('/api/articles/:id', (req, res) => {
+  const row = db.prepare(`SELECT * FROM articles WHERE id = ?`).get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'not found' });
+  res.json({
+    ...row,
+    x_posts: row.x_posts ? JSON.parse(row.x_posts) : [],
+    hashtags: row.hashtags ? JSON.parse(row.hashtags) : [],
+    meta: row.meta ? JSON.parse(row.meta) : null,
+    embedding: undefined
+  });
+});
+
+// =======================================================
+// IMAGE REGENERATION ENDPOINT
+// =======================================================
+app.post('/api/regenerate-image', async (req, res) => {
+  if (!HAS_OPENAI) return res.status(400).json({ error: 'OPENAI_API_KEY not configured' });
+  const { articleId, customPrompt } = req.body;
+  const row = db.prepare(`SELECT * FROM articles WHERE id = ?`).get(articleId);
+  if (!row) return res.status(404).json({ error: 'article not found' });
+
+  try {
+    let image;
+    if (customPrompt) {
+      const resp = await openai.images.generate({
+        model: 'dall-e-3',
+        prompt: customPrompt,
+        n: 1,
+        size: '1024x1024',
+        quality: 'standard',
+        response_format: 'url'
+      });
+      image = { url: resp.data?.[0]?.url, revisedPrompt: resp.data?.[0]?.revised_prompt || customPrompt };
+      trackCost({ provider: 'openai', kind: 'dalle3', units: 1, usd: RATES.dalle3_standard_1024 });
+    } else {
+      image = await generateHeroImage({ title: row.title, articleExcerpt: row.article, accountId: row.account });
+    }
+    if (!image?.url) throw new Error('generation failed');
+    db.prepare(`UPDATE articles SET image_url = ? WHERE id = ?`).run(image.url, articleId);
+    res.json({ imageUrl: image.url, prompt: image.revisedPrompt });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// =======================================================
+// X POST (SCAFFOLD — requires X API keys)
+// =======================================================
+app.post('/api/post-to-x', async (req, res) => {
+  if (!HAS_X_API) return res.status(400).json({ error: 'X API keys not configured', hint: 'Set X_APP_KEY / X_APP_SECRET / X_ACCESS_TOKEN / X_ACCESS_TOKEN_SECRET in .env' });
+
+  const { articleId, posts, imageUrl } = req.body;
+  if (!posts?.length) return res.status(400).json({ error: 'posts required' });
+
+  try {
+    let mediaId = null;
+    if (imageUrl) {
+      const imgResp = await fetch(imageUrl);
+      const buf = Buffer.from(await imgResp.arrayBuffer());
+      const upload = await xClient.v1.uploadMedia(buf, { mimeType: 'image/png' });
+      mediaId = upload;
+    }
+
+    const results = [];
+    let lastId = null;
+    for (let i = 0; i < posts.length; i++) {
+      const payload = { text: posts[i] };
+      if (i === 0 && mediaId) payload.media = { media_ids: [mediaId] };
+      if (lastId) payload.reply = { in_reply_to_tweet_id: lastId };
+      const tweet = await xClient.v2.tweet(payload);
+      lastId = tweet.data.id;
+      results.push({ index: i, id: lastId });
+      if (articleId) {
+        db.prepare(`INSERT OR IGNORE INTO x_metrics(article_id, tweet_id, fetched_at) VALUES (?, ?, ?)`)
+          .run(articleId, lastId, Date.now());
+      }
+    }
+    res.json({ success: true, results, threadUrl: `https://x.com/i/status/${results[0].id}` });
+  } catch (e) {
+    console.error('[post-to-x]', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// =======================================================
+// X METRICS FETCH (SCAFFOLD — learning loop)
+// =======================================================
+app.post('/api/fetch-x-metrics', async (req, res) => {
+  if (!HAS_X_API) return res.status(400).json({ error: 'X API keys not configured' });
+
+  try {
+    const tweets = db.prepare(`SELECT tweet_id, article_id FROM x_metrics ORDER BY fetched_at ASC LIMIT 100`).all();
+    if (!tweets.length) return res.json({ updated: 0, message: 'no tweets tracked yet' });
+
+    const ids = tweets.map(t => t.tweet_id);
+    const data = await xClient.v2.tweets(ids, {
+      'tweet.fields': ['public_metrics', 'non_public_metrics']
+    });
+
+    let updated = 0;
+    for (const t of data.data || []) {
+      const m = t.public_metrics || {};
+      db.prepare(`UPDATE x_metrics SET impressions = ?, likes = ?, retweets = ?, replies = ?, fetched_at = ? WHERE tweet_id = ?`)
+        .run(m.impression_count || 0, m.like_count || 0, m.retweet_count || 0, m.reply_count || 0, Date.now(), t.id);
+      updated++;
+    }
+    res.json({ updated });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// =======================================================
+// FEATURES ENDPOINT — UI feature availability check
+// =======================================================
+app.get('/api/features', (req, res) => {
+  res.json({
+    image: HAS_OPENAI,
+    xAutoPost: HAS_X_API,
+    xMetrics: HAS_X_API,
+    auth: !!APP_PASSWORD,
+    dbPath: DB_PATH
+  });
+});
+
+app.listen(PORT, () => console.log(`NOTE BUZZ ENGINE v3.2 running on port ${PORT}`));
+console.log(`[features] image=${HAS_OPENAI} xapi=${HAS_X_API} auth=${!!APP_PASSWORD}`);

@@ -1,15 +1,40 @@
-# NOTE BUZZ ENGINE v3.0
+# NOTE BUZZ ENGINE v3.2
 
-note.com記事 + Xスレッド自動生成システム。**3アカウント完全分離**・**海外トレンド自動取得**・**即金体験スタート型レベル進行**対応。
+note.com記事 + Xスレッド自動生成システム。**3アカウント完全分離**・**海外トレンド自動取得**・**即金体験スタート型レベル進行**・**DALL-E 3 画像自動生成**・**セマンティック重複排除**・**X API自動投稿**・**コスト可視化**対応。
+
+## v3.2 新機能
+
+| 機能 | 内容 | 必要キー |
+|---|---|---|
+| 🎨 画像自動生成 | 記事生成と同時にDALL-E 3でヒーロー画像を作成・記事/X投稿に自動添付。再生成可。 | `OPENAI_API_KEY` |
+| 🧠 セマンティック重複排除 | 生成した全記事をembedding化しSQLiteに保存、類似85%以上をUI警告 | `OPENAI_API_KEY` |
+| 💰 コスト可視化 | API呼出ごとに自動で円換算して蓄積、上部バッジで累計表示・内訳モーダルあり | なし（JPYレートは`USD_JPY`で調整） |
+| 🔒 簡易認証 | BASIC認証で公開Render環境を保護 | `APP_PASSWORD` |
+| 📚 履歴タブ | 過去生成全記事を一覧・クリックで再表示 | なし（SQLiteに自動蓄積） |
+| ✕ X自動投稿 | 生成したスレッドをワンクリックで本物のXに画像付き投稿 | `X_APP_*` 4点 |
+| 📊 インプ計測 | 投稿したツイートのインプ・いいね・リポストを後追いfetch→DB保存 | `X_APP_*` 4点 |
 
 ## 技術スタック
 
 - **Runtime**: Node.js 20+
-- **Framework**: Express 4
-- **AI**: Anthropic Claude API（`claude-sonnet-4-20250514`）+ web_search tool
+- **Framework**: Express 4 + `express-basic-auth`
+- **AI**: Anthropic Claude Sonnet 4 + web_search tool / OpenAI DALL-E 3 / OpenAI text-embedding-3-small
+- **X連携**: `twitter-api-v2`
+- **DB**: `better-sqlite3`（ローカルSQLite、記事・コスト・Xメトリクスを永続化）
 - **Frontend**: Vanilla HTML/CSS/JS（明るめテーマ）
 - **State**: localStorage（キー: `nbe_v3`）
 - **Deploy**: Render（GitHub自動デプロイ）
+
+## X Developer 登録クイックガイド
+
+1. https://developer.x.com/ にログイン → Free Tier申請（即承認のことが多い）
+2. Project作成 → App作成 → OAuth 1.0a の **Read and Write** 権限で認証
+3. **API Key / API Key Secret** = `X_APP_KEY` / `X_APP_SECRET`
+4. **Access Token / Access Token Secret** = `X_ACCESS_TOKEN` / `X_ACCESS_TOKEN_SECRET`
+5. **Bearer Token** = `X_BEARER_TOKEN`（metrics取得用）
+6. Free Tierは月1,500ポスト・読込なし。本格運用なら **Basic $200/月** 推奨
+
+⚠️ アカウント3つ分（`@shok_ai_kotaro`/`@pita_pizza1`/`@ai_pivot_fire`）を使い分けたい場合は、現状のenvは1アカウント分。複数対応は次フェーズで実装予定。
 
 ## アカウント体制（混在禁止）
 
