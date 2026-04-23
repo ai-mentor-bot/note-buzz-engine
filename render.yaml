@@ -9,3 +9,15 @@ services:
         sync: false
       - key: NODE_ENV
         value: production
+      - key: AFFI_NOTE_PROFILE
+        sync: false
+      - key: AFFI_BRAIN_URL
+        sync: false
+      - key: AFFI_RAKUTEN_URL
+        sync: false
+      - key: AFFI_AMAZON_URL
+        sync: false
+      - key: AFFI_SEMINAR_URL
+        sync: false
+      - key: STORE_EC_URL
+        sync: false

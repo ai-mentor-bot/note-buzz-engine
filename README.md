@@ -1,120 +1,109 @@
-# NOTE BUZZ ENGINE v2.1
+# NOTE BUZZ ENGINE v3.0
 
-note.com記事 + Xスレッドを自動生成するWebアプリ。Anthropic Claude APIを使用。
+note.com記事 + Xスレッド自動生成システム。**3アカウント完全分離**・**海外トレンド自動取得**・**即金体験スタート型レベル進行**対応。
 
 ## 技術スタック
 
 - **Runtime**: Node.js 20+
 - **Framework**: Express 4
-- **AI**: Anthropic Claude API（`claude-sonnet-4-20250514`）
-- **Frontend**: Vanilla HTML/CSS/JS
-- **State**: localStorage
+- **AI**: Anthropic Claude API（`claude-sonnet-4-20250514`）+ web_search tool
+- **Frontend**: Vanilla HTML/CSS/JS（明るめテーマ）
+- **State**: localStorage（キー: `nbe_v3`）
 - **Deploy**: Render（GitHub自動デプロイ）
 
-## ディレクトリ構成
+## アカウント体制（混在禁止）
 
-```
-note-buzz-engine/
-├── server.js              # Expressサーバー（APIプロキシ）
-├── package.json
-├── .env                   # ANTHROPIC_API_KEY（gitignore必須）
-├── .env.example
-├── .gitignore
-├── render.yaml            # Renderデプロイ設定
-├── public/
-│   └── index.html         # フロントエンド（全UI）
-└── README.md
-```
+| ID | ハンドル | 役割 |
+|---|---|---|
+| `ai_main` | `@shok_ai_kotaro` | AI総合メイン発信／noteで稼ぐ／brain自作本主軸 |
+| `store` | `@pita_pizza1` | ピタピザ・Bread Burgerの店舗×EC拡散／楽天・Amazon |
+| `affi_seminar` | `@ai_pivot_fire` | 高額AIセミナーレビュー・アフィリ専用 |
+
+UI上で上部タブから切替。選んだアカウントに応じてペルソナ・アフィリ選択肢・ハッシュタグ・X投稿構成が丸ごと差し替わる。店舗アカ選択時は **AI話題が本文から除外** される。
+
+## レベル進行（即金体験スタート）
+
+| LV | DAY | テーマ | 具体度 |
+|---|---|---|---|
+| LV1 | 1-3 | **即金体験**（今日AIで3,000〜5,000円を作る最短手順） | 90% |
+| LV2 | 4-7 | **継続収入化**（週3万・月10万の再現レシピ） | 80% |
+| LV3 | 8-14 | **仕組み化**（自動化・ワークフロー・複数ツール連携） | 50% |
+| LV4 | 15-21 | **収益最大化**（月10万→30万スケール戦略） | 40% |
+| LV5 | 22日〜 | **独自化**（独自システム構築・差別化戦略） | 30% |
+
+### 挫折防止の塩梅ロジック
+
+- **LV2→3／LV4→5の難易度ジャンプ直前**で30%の確率で「復習回」を自動挿入
+- **LV3以降**は記事冒頭10%に初心者向け導入を強制（新規流入を逃さない）
+- **LV1-2**は「100円を生む最小単位」縛り（派手な金額禁止）
+- **LV境目でメタ進行加筆**を強制発動可能（「ここまで来たあなたへ」型）
+
+## 主要機能
+
+### 1. 海外トレンド自動取得
+Claude APIの `web_search_20250305` ツールを組込。🌐トレンドボタンON時に海外X（@mreflow等）・技術ブログからAIトレンドを自動取得し、日本向けアレンジで本文に反映。
+
+### 2. X投稿バズ最適化
+- 5投稿構成、**1投稿目に数字＋意外性全振り**
+- note誘導は**4投稿目に配置**（最後に置くとリーチ落ちる）
+- 5投稿目は**引用RT誘発CTA**（「同意か反論か？」型）
+- ハッシュタグ自動選定（日本語＋英語混在。海外リーチ拡大）
+
+### 3. メタ進行加筆（シリーズ感）
+- 「DAY X / LV.Y」連番自動付与でフォロー率UP
+- レベル昇格日に自動で「進行報告」メッセージを本文に挿入可能
+
+### 4. FREE / PAID モード
+
+| 項目 | FREE | PAID |
+|---|---|---|
+| 数字の具体性 | 可能性表現のみ | 具体的数値+可能性表現 |
+| 手順の深さ | 概念・方向性 | 設定値・ステップ詳細 |
+| 特殊ブロック | なし | 【PRO TIP】挿入 |
+
+### 5. 著名人引用インジェクション
+- AI系アカ（`ai_main`/`affi_seminar`）でのみ発動
+- ランダム3〜6回に1回、イーロン・マスク/サム・アルトマンの発言を自動挿入
 
 ## セットアップ
-
-### 1. 依存パッケージのインストール
 
 ```bash
 cd note-buzz-engine
 npm install
-```
 
-### 2. 環境変数の設定
-
-`.env.example` をコピーして `.env` を作成し、Anthropic APIキーを記入する:
-
-```bash
 cp .env.example .env
+# .env に ANTHROPIC_API_KEY を記入
+
+npm start
 ```
 
-`.env` の中身:
+ブラウザで `http://localhost:3000`
 
-```
-ANTHROPIC_API_KEY=sk-ant-xxxxxxxx
-PORT=3000
-```
+## 月額コスト概算
 
-### 3. 起動
-
-```bash
-npm start       # 本番起動
-npm run dev     # 開発起動（ファイル変更で自動再起動）
-```
-
-ブラウザで `http://localhost:3000` を開く。
+| 項目 | 金額 |
+|---|---|
+| Anthropic API（90回/月想定） | 約900円 |
+| web_search追加（1記事3検索） | 約550円 |
+| Renderホスティング（Free） | 0円 |
+| **合計** | **約1,450円/月** |
 
 ## GitHub → Render 自動デプロイ
 
 ```bash
-# 1. GitHubにリポジトリ作成
 git init
 git add .
-git commit -m "feat: Note Buzz Engine v2.1"
+git commit -m "feat: Note Buzz Engine v3.0"
 git remote add origin https://github.com/[USERNAME]/note-buzz-engine.git
 git push -u origin main
 ```
 
-2. Renderダッシュボード
-   - New → Web Service
-   - Connect GitHub repository
-   - Branch: `main`
-   - Build Command: `npm install`
-   - Start Command: `node server.js`
-   - Environment Variables: `ANTHROPIC_API_KEY` を設定
-
-3. 以降は `git push origin main` するだけで自動デプロイ
-
-## 主要機能
-
-### コンテンツ重複防止
-- フック（5種）× 視点（5種）× 構成（5種）をランダム選択
-- 直近5回の組み合わせを除外
-- 直近5件のタイトルを「これとかぶるな」指示としてプロンプトに渡す
-
-### FREE / PAID モード
-
-| 項目 | FREE | PAID |
-|------|------|------|
-| 数字の具体性 | 可能性表現のみ | 具体的数値+可能性表現 |
-| 手順の深さ | 概念・方向性 | 設定値・ステップ詳細 |
-| 特殊ブロック | なし | 【PRO TIP】挿入 |
-| CTAスタイル | 「詳しくはリンク先で」 | 「具体的な設定はここから」 |
-
-### レベル進行（初回起動日からの経過日数）
-
-| LV | 経過日 | テーマ |
-|----|--------|--------|
-| 1 | 0〜3日 | AIツール基礎・ChatGPT/Claude入門 |
-| 2 | 4〜7日 | プロンプト実践・初収益 |
-| 3 | 8〜14日 | 自動化・ワークフロー構築 |
-| 4 | 15〜21日 | スケール・収益最大化 |
-| 5 | 22日〜 | 独自システム・差別化 |
-
-### 著名人引用インジェクション
-- 初期値: ランダム3〜6回に1回発動
-- 発動時: ヘッダーの引用インジケーターが緑点滅
-- 出力: 「要確認」バッジ付きで記事冒頭または末尾に配置
+Renderダッシュボードで New → Web Service → Connect GitHub → Build: `npm install` / Start: `node server.js` / Env: `ANTHROPIC_API_KEY` を設定。
 
 ## 注意点
 
-- `ANTHROPIC_API_KEY` は `.env` に記載し、絶対に `git push` しないこと
-- フロントエンドのAPIエンドポイントは `/api/generate`（相対パス）
+- `ANTHROPIC_API_KEY` は `.env` にのみ。絶対に `git push` しないこと
+- `render.yaml` の `sync: false` は必須（APIキーを同期させない）
 - `server.js` の `max_tokens: 4096` は変更しない（記事全文が切れるため）
-- `localStorage` キーは `nbe_v2`（旧バージョンとの競合回避）
-- `render.yaml` の `sync: false` は必須（APIキーをGitHubに同期させない）
+- `localStorage` キーは `nbe_v3`（旧v2と競合回避）
+- 店舗アカ（`store`）では引用機能・トレンド取得機能・note誘導は**自動的に無効化**される

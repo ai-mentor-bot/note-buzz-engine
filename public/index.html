@@ -3,414 +3,676 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NOTE BUZZ ENGINE</title>
+<title>NOTE BUZZ ENGINE v3.0</title>
 <style>
-/* ===== RESET & BASE ===== */
+/* ===== BASE ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-  font-family: 'Courier New', Courier, monospace;
-  background: #0c0c0c;
-  color: #e0e0e0;
-  font-size: 12px;
+  font-family: 'SF Pro Text', 'Helvetica Neue', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  background: #f6f7fb;
+  color: #2a2a3e;
+  font-size: 13px;
   height: 100vh;
   overflow: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* ===== LAYOUT ===== */
 .app {
   display: grid;
-  grid-template-columns: 240px 1fr;
-  grid-template-rows: 48px 1fr 34px;
+  grid-template-columns: 280px 1fr;
+  grid-template-rows: 56px 1fr 36px;
   height: 100vh;
 }
 
 /* ===== TOPBAR ===== */
 .topbar {
   grid-column: 1 / -1;
-  background: #111;
-  border-bottom: 1px solid #222;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7ee;
   display: flex;
   align-items: center;
-  padding: 0 16px;
-  gap: 12px;
+  padding: 0 20px;
+  gap: 14px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
 .logo {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 4px;
-  color: #ccc;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: #222;
   white-space: nowrap;
 }
-.logo em { color: #e84040; font-style: normal; }
+.logo em { color: #ff4466; font-style: normal; }
 .v-tag {
-  font-size: 8px;
-  color: #333;
+  font-size: 9px;
+  color: #9097b0;
   letter-spacing: 2px;
-  padding: 2px 6px;
-  border: 1px solid #222;
+  padding: 3px 7px;
+  border: 1px solid #e2e4ee;
+  border-radius: 4px;
+  background: #fafbfd;
 }
 
+/* Account tabs */
+.acc-tabs {
+  display: flex;
+  gap: 4px;
+  margin-left: 8px;
+}
+.acc-tab {
+  background: #f1f2f7;
+  border: 1px solid #e4e6ee;
+  color: #6a7090;
+  padding: 7px 14px;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  font-family: inherit;
+  border-radius: 6px;
+  transition: all .15s;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.acc-tab:hover { border-color: #cdd1e0; color: #3b3e55; }
+.acc-tab.active-ai {
+  background: #eef2ff;
+  border-color: #4f6af5;
+  color: #2949d8;
+}
+.acc-tab.active-store {
+  background: #ecfdf3;
+  border-color: #1ec070;
+  color: #0d8c4c;
+}
+.acc-tab.active-affi {
+  background: #fff1ec;
+  border-color: #ff6a3d;
+  color: #d44a18;
+}
+
+.acc-info {
+  font-size: 10px;
+  color: #6a7090;
+  letter-spacing: 0.5px;
+  padding: 5px 10px;
+  border-left: 2px solid #e4e6ee;
+}
+.acc-info b { color: #2a2a3e; font-weight: 700; }
+
 /* Plan toggle */
-.plan-toggle { display: flex; border: 1px solid #2a2a2a; margin-left: 8px; }
+.plan-toggle {
+  display: flex;
+  border: 1px solid #e4e6ee;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-left: auto;
+}
 .plan-btn {
-  background: #1a1a1a;
+  background: #fafbfd;
   border: none;
-  color: #555;
-  padding: 4px 12px;
-  font-size: 9px;
+  color: #9097b0;
+  padding: 6px 14px;
+  font-size: 10px;
   letter-spacing: 2px;
   cursor: pointer;
   font-family: inherit;
+  font-weight: 700;
   transition: all .15s;
 }
-.plan-btn.active-free { background: #0d0d22; color: #5577ee; }
-.plan-btn.active-paid { background: #1e1500; color: #ddaa22; }
+.plan-btn.active-free { background: #eef2ff; color: #2949d8; }
+.plan-btn.active-paid { background: #fff5e0; color: #b57700; }
 
 /* Level badge */
 .level-badge {
-  font-size: 9px;
-  letter-spacing: 2px;
-  padding: 3px 10px;
-  border: 1px solid #222;
-  background: #111;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  padding: 5px 12px;
+  border: 1px solid #e4e6ee;
+  background: #fafbfd;
+  border-radius: 6px;
+  white-space: nowrap;
 }
-.lv1 { color: #4488ff; border-color: #223; }
-.lv2 { color: #44cc88; border-color: #132; }
-.lv3 { color: #ddaa22; border-color: #332; }
-.lv4 { color: #ee7733; border-color: #321; }
-.lv5 { color: #ee3355; border-color: #311; }
+.lv1 { color: #2949d8; border-color: #c9d3ff; background: #eef2ff; }
+.lv2 { color: #0d8c4c; border-color: #b8ead0; background: #ecfdf3; }
+.lv3 { color: #b57700; border-color: #fbe1a0; background: #fff5e0; }
+.lv4 { color: #d44a18; border-color: #fac7b5; background: #fff1ec; }
+.lv5 { color: #c4104b; border-color: #f7b3c8; background: #fff0f5; }
+
+/* Day counter */
+.day-counter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #6a7090;
+  letter-spacing: 1px;
+  background: #fafbfd;
+  border: 1px solid #e4e6ee;
+  border-radius: 6px;
+  padding: 3px 6px;
+}
+.day-counter input {
+  width: 40px;
+  background: transparent;
+  border: none;
+  color: #2a2a3e;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  font-family: inherit;
+  outline: none;
+}
 
 /* Quote indicator */
 .quote-ind {
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 1px;
-  padding: 3px 10px;
-  background: #191300;
-  border: 1px solid #2a2100;
-  color: #997711;
+  padding: 5px 10px;
+  background: #fff5e0;
+  border: 1px solid #fbe1a0;
+  color: #b57700;
+  border-radius: 6px;
   transition: all .2s;
 }
 .quote-ind.ready {
-  background: #0f1900;
-  border-color: #2a4400;
-  color: #88cc22;
+  background: #ecfdf3;
+  border-color: #6fd9a3;
+  color: #0d8c4c;
   animation: blink .8s ease-in-out infinite;
 }
-@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+.quote-ind.disabled { opacity: 0.4; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+
+.trend-ind {
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 5px 10px;
+  background: #f0ecff;
+  border: 1px solid #d4c8ff;
+  color: #5e3ad8;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  transition: all .15s;
+  font-weight: 600;
+}
+.trend-ind.active { background: #5e3ad8; color: white; border-color: #5e3ad8; }
+.trend-ind.disabled { opacity: 0.4; cursor: not-allowed; }
 
 .yr-tag {
-  margin-left: auto;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 2px;
-  padding: 3px 10px;
-  background: #0a1a0a;
-  border: 1px solid #1a3a1a;
-  color: #44aa44;
+  padding: 5px 10px;
+  background: #ecfdf3;
+  border: 1px solid #b8ead0;
+  color: #0d8c4c;
+  border-radius: 6px;
+  font-weight: 700;
 }
 
 /* ===== SIDEBAR ===== */
 .sidebar {
-  background: #111;
-  border-right: 1px solid #1e1e1e;
-  padding: 12px;
+  background: #ffffff;
+  border-right: 1px solid #e5e7ee;
+  padding: 16px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 .sec-label {
-  font-size: 8px;
-  letter-spacing: 3px;
-  color: #444;
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  color: #9097b0;
   text-transform: uppercase;
-  margin-bottom: 5px;
+  font-weight: 700;
+  margin-bottom: 6px;
 }
 
 /* Buttons */
-.btn-row { display: flex; flex-direction: column; gap: 3px; }
+.btn-row { display: flex; flex-direction: column; gap: 4px; }
 .btn-sm {
-  background: #1a1a1a;
-  border: 1px solid #252525;
-  color: #888;
-  padding: 5px 8px;
-  font-size: 10px;
+  background: #fafbfd;
+  border: 1px solid #e4e6ee;
+  color: #4a4e68;
+  padding: 7px 10px;
+  font-size: 11px;
   cursor: pointer;
   text-align: left;
   font-family: inherit;
+  border-radius: 6px;
   transition: all .12s;
   width: 100%;
 }
-.btn-sm:hover { border-color: #3a3a3a; color: #ccc; }
-.btn-sm.active { background: #1e0808; border-color: #e84040; color: #e84040; }
+.btn-sm:hover { border-color: #b8bed0; background: #f3f4f9; }
+.btn-sm.active { background: #fff1ec; border-color: #ff6a3d; color: #d44a18; font-weight: 700; }
 
 /* Type grid */
-.type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+.type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .type-btn {
-  background: #1a1a1a;
-  border: 1px solid #252525;
-  color: #777;
-  padding: 6px 4px;
-  font-size: 9px;
+  background: #fafbfd;
+  border: 1px solid #e4e6ee;
+  color: #4a4e68;
+  padding: 8px 6px;
+  font-size: 10px;
   cursor: pointer;
   font-family: inherit;
+  border-radius: 6px;
   transition: all .12s;
   line-height: 1.4;
   text-align: center;
 }
-.type-btn:hover { border-color: #3a3a3a; color: #ccc; }
-.type-btn.active { background: #091809; border-color: #44aa44; color: #66cc66; }
+.type-btn:hover { border-color: #b8bed0; background: #f3f4f9; }
+.type-btn.active { background: #ecfdf3; border-color: #1ec070; color: #0d8c4c; font-weight: 700; }
 .type-btn .sub {
-  font-size: 7px;
-  color: #444;
+  font-size: 8px;
+  color: #9097b0;
   display: block;
-  margin-top: 2px;
+  margin-top: 3px;
+  font-weight: 500;
 }
-.type-btn.active .sub { color: #337733; }
+.type-btn.active .sub { color: #22a263; }
 
 /* Persona grid */
-.pgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+.pgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .pbtn {
-  background: #1a1a1a;
-  border: 1px solid #252525;
-  color: #777;
-  padding: 4px;
-  font-size: 9px;
+  background: #fafbfd;
+  border: 1px solid #e4e6ee;
+  color: #4a4e68;
+  padding: 6px 6px;
+  font-size: 10px;
   cursor: pointer;
   font-family: inherit;
+  border-radius: 6px;
   transition: all .12s;
   text-align: center;
 }
-.pbtn:hover { border-color: #3a3a3a; color: #ccc; }
-.pbtn.active { background: #090921; border-color: #4466cc; color: #6688ee; }
+.pbtn:hover { border-color: #b8bed0; }
+.pbtn.active { background: #eef2ff; border-color: #4f6af5; color: #2949d8; font-weight: 700; }
 
 /* Inputs */
 input.kw-input, select.aff-select {
   width: 100%;
-  background: #161616;
-  border: 1px solid #252525;
-  color: #ccc;
-  padding: 6px 8px;
-  font-size: 11px;
+  background: #fafbfd;
+  border: 1px solid #e4e6ee;
+  color: #2a2a3e;
+  padding: 8px 10px;
+  font-size: 12px;
   font-family: inherit;
+  border-radius: 6px;
   outline: none;
   transition: border .12s;
 }
-input.kw-input:focus { border-color: #444; }
+input.kw-input:focus, select.aff-select:focus { border-color: #4f6af5; background: white; }
 select.aff-select {
-  color: #aaa;
-  font-size: 10px;
   cursor: pointer;
-  -webkit-appearance: none;
+  font-size: 11px;
 }
 
 /* Generate button */
 .gen-btn {
   width: 100%;
-  background: #e84040;
+  background: linear-gradient(135deg, #ff4466, #ff6a3d);
   border: none;
-  color: #fff;
-  padding: 10px;
-  font-size: 10px;
-  font-weight: 700;
+  color: white;
+  padding: 12px;
+  font-size: 11px;
+  font-weight: 800;
   letter-spacing: 3px;
   cursor: pointer;
   font-family: inherit;
+  border-radius: 8px;
   transition: all .15s;
   margin-top: auto;
+  box-shadow: 0 4px 14px rgba(255, 68, 102, 0.25);
 }
-.gen-btn:hover { background: #ff5555; }
-.gen-btn:disabled { background: #3a1a1a; color: #555; cursor: not-allowed; }
+.gen-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(255, 68, 102, 0.35); }
+.gen-btn:disabled { background: #d4d7e0; color: #9097b0; cursor: not-allowed; box-shadow: none; transform: none; }
 .gen-btn.loading { animation: pulse 1s ease-in-out infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .6; } }
 
 /* History */
 .hist-pill {
   display: inline-block;
-  background: #1a1a1a;
-  border: 1px solid #222;
-  color: #555;
-  padding: 2px 6px;
-  font-size: 8px;
+  background: #f3f4f9;
+  border: 1px solid #e4e6ee;
+  color: #6a7090;
+  padding: 3px 8px;
+  font-size: 9px;
   margin: 2px;
-  cursor: default;
+  border-radius: 10px;
 }
+
+/* Toggle options */
+.toggle-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.toggle-chip {
+  background: #fafbfd;
+  border: 1px solid #e4e6ee;
+  color: #6a7090;
+  padding: 5px 10px;
+  font-size: 10px;
+  cursor: pointer;
+  border-radius: 14px;
+  font-family: inherit;
+  transition: all .12s;
+  font-weight: 600;
+}
+.toggle-chip.on {
+  background: #f0ecff;
+  border-color: #5e3ad8;
+  color: #5e3ad8;
+}
+
+/* Meta banner */
+.meta-banner {
+  background: linear-gradient(135deg, #fff8e6, #fff1ec);
+  border: 1px solid #ffcd9c;
+  border-left: 4px solid #ff6a3d;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 10px;
+  color: #8a4420;
+  line-height: 1.6;
+  display: none;
+}
+.meta-banner.show { display: block; }
+.meta-banner b { color: #d44a18; }
 
 /* ===== MAIN ===== */
 .main {
-  background: #0c0c0c;
+  background: #f6f7fb;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 .tabs {
   display: flex;
-  border-bottom: 1px solid #1e1e1e;
-  background: #0f0f0f;
+  border-bottom: 1px solid #e5e7ee;
+  background: #ffffff;
+  padding: 0 4px;
 }
 .tab {
-  padding: 10px 16px;
-  font-size: 9px;
+  padding: 12px 18px;
+  font-size: 10px;
   letter-spacing: 2px;
+  font-weight: 700;
   cursor: pointer;
-  color: #444;
+  color: #9097b0;
   border: none;
   background: none;
   font-family: inherit;
   border-bottom: 2px solid transparent;
   transition: all .12s;
 }
-.tab:hover { color: #888; }
-.tab.active { color: #e0e0e0; border-bottom-color: #e84040; }
+.tab:hover { color: #4a4e68; }
+.tab.active { color: #2a2a3e; border-bottom-color: #ff4466; }
+.tab .badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  background: #ff4466;
+  color: white;
+  border-radius: 8px;
+  font-size: 8px;
+  vertical-align: middle;
+}
 
-/* Preview area */
 .preview {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 24px;
+  padding: 24px 28px;
   scrollbar-width: thin;
-  scrollbar-color: #222 transparent;
+  scrollbar-color: #d4d7e0 transparent;
 }
 
-/* Empty state */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 100%;
-  gap: 12px;
+  gap: 14px;
 }
-.empty-big { font-size: 32px; letter-spacing: 12px; color: #1a1a1a; }
-.empty-sub { font-size: 9px; letter-spacing: 3px; color: #2a2a2a; }
+.empty-big {
+  font-size: 40px;
+  letter-spacing: 14px;
+  color: #d4d7e0;
+  font-weight: 800;
+}
+.empty-sub { font-size: 10px; letter-spacing: 3px; color: #b4b8c8; }
 
 /* Quote card */
 .quote-card {
-  background: #141200;
-  border: 1px solid #2a2400;
-  border-left: 3px solid #e8a020;
-  padding: 10px 14px;
-  margin-bottom: 14px;
+  background: linear-gradient(135deg, #fff8e6, #fffdf3);
+  border: 1px solid #fbe1a0;
+  border-left: 4px solid #e8a020;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border-radius: 6px;
 }
-.quote-who { font-size: 8px; color: #886600; letter-spacing: 2px; margin-bottom: 5px; }
-.quote-text { font-size: 11px; color: #ccaa44; line-height: 1.7; font-style: italic; }
-.quote-src { font-size: 8px; color: #554400; margin-top: 5px; }
+.quote-who { font-size: 9px; color: #8a6300; letter-spacing: 2px; margin-bottom: 6px; font-weight: 700; }
+.quote-text { font-size: 12px; color: #6a4a00; line-height: 1.7; font-style: italic; }
+.quote-src { font-size: 9px; color: #9c8045; margin-top: 6px; }
 .quote-verify {
   display: inline-block;
-  background: #3a2000;
-  color: #aa6600;
-  font-size: 7px;
-  padding: 1px 5px;
+  background: #ffdf85;
+  color: #8a4420;
+  font-size: 8px;
+  padding: 1px 6px;
   margin-left: 6px;
   letter-spacing: 1px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+/* Trend card */
+.trend-card {
+  background: linear-gradient(135deg, #f6f2ff, #fff5f5);
+  border: 1px solid #d4c8ff;
+  border-left: 4px solid #5e3ad8;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border-radius: 6px;
+}
+.trend-head { font-size: 9px; color: #5e3ad8; letter-spacing: 2px; font-weight: 800; margin-bottom: 6px; }
+.trend-body { font-size: 11px; color: #4a3a7e; line-height: 1.7; white-space: pre-wrap; }
+
+/* Review banner */
+.review-banner {
+  background: #fff5e0;
+  border: 1px solid #fbe1a0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 10px;
+  color: #8a4420;
+  margin-bottom: 12px;
+  font-weight: 600;
 }
 
 /* Article preview */
 .art-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: #fff;
+  font-size: 17px;
+  font-weight: 800;
+  color: #1a1a2e;
   line-height: 1.5;
-  border-left: 3px solid #e84040;
-  padding: 4px 12px;
-  margin-bottom: 12px;
+  border-left: 4px solid #ff4466;
+  padding: 4px 14px;
+  margin-bottom: 14px;
   flex: 1;
 }
 .art-meta {
-  font-size: 9px;
-  color: #444;
-  margin-bottom: 14px;
+  font-size: 10px;
+  color: #9097b0;
+  margin-bottom: 18px;
   letter-spacing: 1px;
   display: flex;
-  gap: 12px;
+  gap: 14px;
   align-items: center;
+  flex-wrap: wrap;
 }
 .plan-tag {
-  font-size: 8px;
-  padding: 2px 7px;
+  font-size: 9px;
+  padding: 3px 9px;
+  letter-spacing: 1px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+.plan-tag.free { background: #eef2ff; color: #2949d8; }
+.plan-tag.paid { background: #fff5e0; color: #b57700; }
+.series-tag {
+  font-size: 9px;
+  padding: 3px 9px;
+  background: #f0ecff;
+  color: #5e3ad8;
+  border-radius: 10px;
+  font-weight: 700;
   letter-spacing: 1px;
 }
-.plan-tag.free { background: #0d0d22; color: #4455cc; border: 1px solid #1a1a33; }
-.plan-tag.paid { background: #1e1400; color: #ccaa22; border: 1px solid #332a00; }
 
-.art-body p { color: #bbb; font-size: 11px; margin-bottom: 10px; line-height: 1.9; }
-.art-h2 { font-size: 12px; font-weight: 700; color: #ddd; margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 1px solid #1e1e1e; }
-.art-step { background: #0a160a; border-left: 3px solid #44aa44; padding: 7px 10px; margin: 7px 0; font-size: 11px; color: #88cc88; line-height: 1.6; }
-.art-li { padding: 2px 0 2px 12px; border-left: 2px solid #2a2a2a; color: #bbb; font-size: 11px; margin-bottom: 4px; }
+.art-body p { color: #3a3e55; font-size: 12px; margin-bottom: 10px; line-height: 1.95; }
+.art-h2 { font-size: 13px; font-weight: 800; color: #1a1a2e; margin: 20px 0 8px; padding-bottom: 5px; border-bottom: 1px solid #e5e7ee; }
+.art-step { background: #ecfdf3; border-left: 4px solid #1ec070; padding: 8px 12px; margin: 8px 0; font-size: 12px; color: #0a6a38; line-height: 1.7; border-radius: 4px; }
+.art-li { padding: 3px 0 3px 12px; border-left: 2px solid #d4d7e0; color: #3a3e55; font-size: 12px; margin-bottom: 5px; }
 .art-pro-tip {
-  background: #1a1500;
-  border: 1px solid #2a2200;
-  padding: 8px 12px;
-  margin: 10px 0;
-  font-size: 11px;
-  color: #ccaa44;
+  background: linear-gradient(135deg, #fff8e6, #fffdf3);
+  border: 1px solid #fbe1a0;
+  padding: 10px 14px;
+  margin: 12px 0;
+  font-size: 12px;
+  color: #8a6300;
   line-height: 1.7;
+  border-radius: 6px;
 }
 .art-pro-tip::before {
   content: '▶ PRO TIP';
-  font-size: 8px;
-  color: #886600;
+  font-size: 9px;
+  color: #b57700;
+  letter-spacing: 2px;
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 800;
+}
+.art-meta-note {
+  background: #eef2ff;
+  border-left: 4px solid #4f6af5;
+  padding: 10px 14px;
+  margin: 12px 0;
+  font-size: 11px;
+  color: #2949d8;
+  line-height: 1.7;
+  border-radius: 6px;
+}
+.art-meta-note::before {
+  content: '📮 MESSAGE';
+  font-size: 9px;
+  color: #4f6af5;
   letter-spacing: 2px;
   display: block;
   margin-bottom: 4px;
+  font-weight: 800;
 }
 
 /* X posts */
 .x-post {
-  background: #0f0f0f;
-  border: 1px solid #1e1e1e;
-  padding: 10px 12px;
-  margin-bottom: 6px;
+  background: #ffffff;
+  border: 1px solid #e5e7ee;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
-.x-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-.x-num { font-size: 8px; color: #444; letter-spacing: 2px; }
-.x-chars { font-size: 8px; }
-.x-text { font-size: 11px; color: #ccc; line-height: 1.7; }
+.x-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.x-num { font-size: 9px; color: #9097b0; letter-spacing: 2px; font-weight: 700; }
+.x-chars { font-size: 9px; font-weight: 700; }
+.x-text { font-size: 12px; color: #3a3e55; line-height: 1.75; white-space: pre-wrap; }
+.x-role {
+  display: inline-block;
+  font-size: 8px;
+  padding: 1px 6px;
+  background: #f3f4f9;
+  color: #6a7090;
+  border-radius: 8px;
+  margin-left: 4px;
+  font-weight: 600;
+}
+
+.hashtag-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 12px 0;
+  padding: 10px 14px;
+  background: #ffffff;
+  border: 1px solid #e5e7ee;
+  border-radius: 8px;
+}
+.htag {
+  background: #eef2ff;
+  color: #2949d8;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.htag.en { background: #f0ecff; color: #5e3ad8; }
 
 /* Copy buttons */
 .copy-btn {
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  color: #555;
-  padding: 2px 8px;
-  font-size: 8px;
+  background: #f3f4f9;
+  border: 1px solid #e4e6ee;
+  color: #6a7090;
+  padding: 3px 10px;
+  font-size: 9px;
   cursor: pointer;
   font-family: inherit;
+  border-radius: 4px;
   transition: all .12s;
   white-space: nowrap;
+  font-weight: 600;
 }
-.copy-btn:hover { color: #aaa; border-color: #444; }
-.copy-btn.ok { color: #55aa55; border-color: #2a4a2a; }
+.copy-btn:hover { color: #2a2a3e; border-color: #b8bed0; }
+.copy-btn.ok { color: #0d8c4c; border-color: #6fd9a3; background: #ecfdf3; }
 .all-copy {
   width: 100%;
-  background: #1a1a1a;
-  border: 1px solid #2a2a2a;
-  color: #888;
-  padding: 8px;
-  font-size: 9px;
+  background: #ffffff;
+  border: 1px solid #e4e6ee;
+  color: #4a4e68;
+  padding: 10px;
+  font-size: 10px;
   letter-spacing: 2px;
   cursor: pointer;
   font-family: inherit;
+  border-radius: 6px;
   transition: all .15s;
-  margin-top: 6px;
+  margin-top: 8px;
+  font-weight: 700;
 }
-.all-copy:hover { border-color: #555; color: #ccc; }
+.all-copy:hover { border-color: #4f6af5; color: #2949d8; }
 
 /* ===== STATUS BAR ===== */
 .statusbar {
   grid-column: 1 / -1;
-  background: #0f0f0f;
-  border-top: 1px solid #1e1e1e;
+  background: #ffffff;
+  border-top: 1px solid #e5e7ee;
   display: flex;
   align-items: center;
-  padding: 0 16px;
-  gap: 16px;
-  font-size: 8px;
-  color: #444;
-  letter-spacing: 2px;
+  padding: 0 20px;
+  gap: 18px;
+  font-size: 9px;
+  color: #9097b0;
+  letter-spacing: 1.5px;
+  font-weight: 600;
 }
-.s-dot { width: 5px; height: 5px; border-radius: 50%; background: #2a2a2a; }
-.s-dot.on { background: #44aa44; box-shadow: 0 0 5px #44aa44; }
-.s-dot.err { background: #e84040; }
+.s-dot { width: 6px; height: 6px; border-radius: 50%; background: #d4d7e0; }
+.s-dot.on { background: #1ec070; box-shadow: 0 0 6px #6fd9a3; }
+.s-dot.err { background: #ff4466; }
 </style>
 </head>
 <body>
@@ -419,63 +681,70 @@ select.aff-select {
   <!-- TOPBAR -->
   <div class="topbar">
     <div class="logo">NOTE BUZZ <em>ENGINE</em></div>
-    <div class="v-tag">v2.1</div>
+    <div class="v-tag">v3.0</div>
+
+    <div class="acc-tabs">
+      <button class="acc-tab" data-acc="ai_main" onclick="setAccount('ai_main')">AI総合</button>
+      <button class="acc-tab" data-acc="store" onclick="setAccount('store')">店舗</button>
+      <button class="acc-tab" data-acc="affi_seminar" onclick="setAccount('affi_seminar')">セミナーアフィリ</button>
+    </div>
+
+    <div class="acc-info" id="accInfo">—</div>
+
+    <div class="day-counter">
+      DAY <input type="number" id="dayInp" min="1" max="365" value="1" onchange="onDayChange()">
+    </div>
+
+    <div class="level-badge lv1" id="lvBadge">LV.1 — 即金体験</div>
+
+    <div class="trend-ind" id="trendInd" onclick="toggleTrend()" title="海外Xトレンド自動取得">🌐 トレンド</div>
+
+    <div class="quote-ind" id="quoteInd">引用: あと<span id="quoteCnt">?</span>回</div>
+
     <div class="plan-toggle">
       <button class="plan-btn active-free" id="planFree" onclick="setPlan('free')">FREE</button>
       <button class="plan-btn" id="planPaid" onclick="setPlan('paid')">PAID</button>
     </div>
-    <div class="level-badge lv1" id="lvBadge">LV.1 — 入門</div>
-    <div class="quote-ind" id="quoteInd">引用: あと<span id="quoteCnt">?</span>回</div>
+
     <div class="yr-tag" id="yrTag">----</div>
   </div>
 
   <!-- SIDEBAR -->
   <div class="sidebar">
+    <div class="meta-banner" id="metaBanner"></div>
+
     <div>
-      <div class="sec-label">ブランド</div>
-      <div class="btn-row">
-        <button class="btn-sm active" data-group="brand" data-val="bread_burger" onclick="pickBtn(this,'brand')">Bread Burger</button>
-        <button class="btn-sm" data-group="brand" data-val="pitapizza" onclick="pickBtn(this,'brand')">ピタピザ</button>
-        <button class="btn-sm" data-group="brand" data-val="custom" onclick="pickBtn(this,'brand')">カスタム</button>
-      </div>
+      <div class="sec-label">メインキーワード</div>
+      <input class="kw-input" id="kw" type="text" placeholder="例: AI副業 初心者 3000円" />
     </div>
 
     <div>
       <div class="sec-label">記事タイプ</div>
-      <div class="type-grid">
+      <div class="type-grid" id="typeGrid">
         <button class="type-btn" data-val="lmn" onclick="pickType(this)">LMN最強<span class="sub">拡散×保存</span></button>
         <button class="type-btn" data-val="comparison" onclick="pickType(this)">比較・選び型<span class="sub">購買直前層</span></button>
         <button class="type-btn active" data-val="guide" onclick="pickType(this)">まとめ型<span class="sub">保存率高</span></button>
+        <button class="type-btn" data-val="case_study" onclick="pickType(this)">実例型<span class="sub">信頼獲得</span></button>
         <button class="type-btn" data-val="trending" onclick="pickType(this)">トレンド型<span class="sub">時事×拡散</span></button>
       </div>
     </div>
 
     <div>
-      <div class="sec-label">メインキーワード</div>
-      <input class="kw-input" id="kw" type="text" placeholder="例: AI副業 初心者 月5万" />
-    </div>
-
-    <div>
-      <div class="sec-label">ターゲット読者</div>
-      <div class="pgrid">
-        <button class="pbtn active" data-group="persona" data-val="副業初心者" onclick="pickBtn(this,'persona')">副業初心者</button>
-        <button class="pbtn" data-group="persona" data-val="副業中級者" onclick="pickBtn(this,'persona')">副業中級者</button>
-        <button class="pbtn" data-group="persona" data-val="主婦・育児中" onclick="pickBtn(this,'persona')">主婦・育児中</button>
-        <button class="pbtn" data-group="persona" data-val="学生・20代" onclick="pickBtn(this,'persona')">学生・20代</button>
-        <button class="pbtn" data-group="persona" data-val="クリエイター" onclick="pickBtn(this,'persona')">クリエイター</button>
-        <button class="pbtn" data-group="persona" data-val="飲食業従事者" onclick="pickBtn(this,'persona')">飲食業従事者</button>
-      </div>
+      <div class="sec-label" id="personaLabel">ターゲット読者</div>
+      <div class="pgrid" id="pgrid"></div>
     </div>
 
     <div>
       <div class="sec-label">アフィリエイト軸</div>
-      <select class="aff-select" id="aff">
-        <option>AIツール（Claude/ChatGPT等）</option>
-        <option>副業・ビジネス教材</option>
-        <option>飲食・フード関連</option>
-        <option>ガジェット・ツール</option>
-        <option>書籍・コンテンツ</option>
-      </select>
+      <select class="aff-select" id="aff"></select>
+    </div>
+
+    <div>
+      <div class="sec-label">オプション</div>
+      <div class="toggle-row">
+        <button class="toggle-chip" id="optReview" onclick="toggleOpt('review')">🔁 復習回</button>
+        <button class="toggle-chip" id="optMeta" onclick="toggleOpt('meta')">📮 進行加筆</button>
+      </div>
     </div>
 
     <div id="histSec" style="display:none">
@@ -491,6 +760,7 @@ select.aff-select {
     <div class="tabs">
       <button class="tab active" onclick="switchTab(this,'article')">■ 記事</button>
       <button class="tab" onclick="switchTab(this,'x')">✕ X投稿セット</button>
+      <button class="tab" onclick="switchTab(this,'trend')" id="trendTab">🌐 トレンドログ</button>
     </div>
     <div class="preview" id="preview">
       <div class="empty-state">
@@ -504,131 +774,203 @@ select.aff-select {
   <div class="statusbar">
     <div class="s-dot" id="sDot"></div>
     <span id="sTxt">READY</span>
-    <span>■ 文字数 <span id="wcSt">0</span></span>
-    <span>■ 生成 <span id="gcSt">0</span>回</span>
+    <span>■ ACC <span id="accSt">—</span></span>
+    <span>■ DAY <span id="daySt">1</span></span>
     <span>■ LV <span id="lvSt">1</span></span>
+    <span>■ 文字数 <span id="wcSt">0</span></span>
+    <span>■ 累計生成 <span id="gcSt">0</span></span>
   </div>
 
 </div>
 
 <script>
 // ===== CONSTANTS =====
-const SK = 'nbe_v2';
+const SK = 'nbe_v3';
 const CY = new Date().getFullYear();
-
-const HOOKS = [
-  '問題提起型（「〜で悩んでいませんか？」から始める）',
-  '体験談型（著者の失敗談から入る）',
-  '数字インパクト型（冒頭に具体的な数字を入れる）',
-  '逆説型（「実は〜ではない」から始める）',
-  '質問型（読者への問いかけから始める）'
-];
-const ANGLES = [
-  'AI初心者目線で解説する',
-  '飲食店オーナーとして日々の業務での活用を交える',
-  '失敗から学んだ視点を主軸にする',
-  'ツール比較・コスト視点で進める',
-  '時間効率化・スキマ時間活用の視点で進める'
-];
-const STRUCTURES = [
-  'PREP法（結論→理由→具体例→結論）',
-  'SDS法（要約→詳細→要約）',
-  '問題→解決→結果の3段構成',
-  'ビフォーアフター構成',
-  'ステップバイステップ構成'
-];
-const LV_INFO = [
-  { lv: 1, tag: 'LV.1 — 入門', cls: 'lv1', days: [0, 3] },
-  { lv: 2, tag: 'LV.2 — 実践', cls: 'lv2', days: [4, 7] },
-  { lv: 3, tag: 'LV.3 — 応用', cls: 'lv3', days: [8, 14] },
-  { lv: 4, tag: 'LV.4 — 収益化', cls: 'lv4', days: [15, 21] },
-  { lv: 5, tag: 'LV.5 — 上級', cls: 'lv5', days: [22, Infinity] }
-];
 
 // ===== STATE =====
 function defSt() {
   return {
-    plan: 'free', brand: 'bread_burger', type: 'guide', persona: '副業初心者',
-    hist: [], totalGens: 0,
+    account: 'ai_main',
+    plan: 'free',
+    type: 'guide',
+    persona: null,
+    affiliate: null,
+    day: 1,
     firstDate: Date.now(),
+    hist: { ai_main: [], store: [], affi_seminar: [] },
+    totalGens: 0,
+    useTrend: false,
+    forceReview: false,
+    forceMeta: false,
     nextQuoteAt: randQ()
   };
 }
 function randQ() { return 3 + Math.floor(Math.random() * 4); }
 
 let st = (() => {
-  try { return JSON.parse(localStorage.getItem(SK)) || defSt(); }
-  catch { return defSt(); }
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SK));
+    if (!parsed) return defSt();
+    const fresh = defSt();
+    return { ...fresh, ...parsed, hist: { ...fresh.hist, ...(parsed.hist || {}) } };
+  } catch { return defSt(); }
 })();
 
-function saveSt() {
-  try { localStorage.setItem(SK, JSON.stringify(st)); } catch {}
-}
+function saveSt() { try { localStorage.setItem(SK, JSON.stringify(st)); } catch {} }
 
 let curTab = 'article';
 let lastResult = null;
+let accountDirectory = null;
+let levelsFromServer = null;
 
-// ===== INIT =====
+// ===== BOOT =====
 document.getElementById('yrTag').textContent = CY + '年';
-updateLvBadge();
-updateQuoteInd();
-updateHistList();
-setPlan(st.plan);
+document.getElementById('dayInp').value = st.day;
+setPlan(st.plan, false);
 
-// ===== HELPERS =====
-function getLevel() {
-  const days = (Date.now() - st.firstDate) / 86400000;
-  return LV_INFO.find(l => days >= l.days[0] && days <= l.days[1]) || LV_INFO[4];
+(async function boot() {
+  try {
+    const res = await fetch('/api/accounts');
+    const json = await res.json();
+    accountDirectory = json.accounts;
+    levelsFromServer = json.levels;
+  } catch {
+    accountDirectory = null;
+  }
+  setAccount(st.account, false);
+  refreshLevelUI();
+  updateQuoteInd();
+  updateHistList();
+  checkMetaHint();
+})();
+
+// ===== ACCOUNT SWITCHING =====
+function setAccount(acc, save = true) {
+  st.account = acc;
+  document.querySelectorAll('.acc-tab').forEach(t => {
+    t.className = 'acc-tab';
+    if (t.dataset.acc === acc) {
+      if (acc === 'ai_main') t.classList.add('active-ai');
+      if (acc === 'store') t.classList.add('active-store');
+      if (acc === 'affi_seminar') t.classList.add('active-affi');
+    }
+  });
+  document.getElementById('accSt').textContent = acc === 'ai_main' ? 'AI' : acc === 'store' ? 'STORE' : 'AFFI';
+
+  const info = accountDirectory?.[acc];
+  if (info) {
+    document.getElementById('accInfo').innerHTML =
+      `<b>${info.handle}</b> — ${info.label}`;
+    buildPersonas(info.personaPool);
+    buildAffiliates(info.affiliatePool);
+
+    // quote/trend availability
+    document.getElementById('quoteInd').className =
+      'quote-ind' + (info.allowQuote ? '' : ' disabled');
+    document.getElementById('trendInd').className =
+      'trend-ind' + (info.allowTrend ? (st.useTrend ? ' active' : '') : ' disabled');
+    if (!info.allowTrend) st.useTrend = false;
+  }
+  if (save) saveSt();
 }
 
-function updateLvBadge() {
-  const lv = getLevel();
+function buildPersonas(pool) {
+  const grid = document.getElementById('pgrid');
+  grid.innerHTML = '';
+  pool.forEach((p, i) => {
+    const b = document.createElement('button');
+    b.className = 'pbtn' + ((st.persona === p || (!st.persona && i === 0)) ? ' active' : '');
+    b.textContent = p;
+    b.dataset.val = p;
+    b.onclick = () => {
+      grid.querySelectorAll('.pbtn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      st.persona = p;
+      saveSt();
+    };
+    grid.appendChild(b);
+  });
+  if (!st.persona || !pool.includes(st.persona)) st.persona = pool[0];
+}
+
+function buildAffiliates(pool) {
+  const sel = document.getElementById('aff');
+  sel.innerHTML = '';
+  pool.forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a;
+    opt.textContent = a;
+    sel.appendChild(opt);
+  });
+  if (st.affiliate && pool.includes(st.affiliate)) sel.value = st.affiliate;
+  else st.affiliate = pool[0];
+  sel.onchange = () => { st.affiliate = sel.value; saveSt(); };
+}
+
+// ===== DAY / LEVEL =====
+function getLevelByDay(day) {
+  if (!levelsFromServer) return { lv: 1, tag: 'LV.1 — 即金体験', fromDay: 1 };
+  return levelsFromServer.find(l => day >= l.fromDay && day <= l.toDay) || levelsFromServer[0];
+}
+function refreshLevelUI() {
+  const lv = getLevelByDay(st.day);
   const el = document.getElementById('lvBadge');
   el.textContent = lv.tag;
-  el.className = 'level-badge ' + lv.cls;
+  el.className = 'level-badge lv' + lv.lv;
   document.getElementById('lvSt').textContent = lv.lv;
+  document.getElementById('daySt').textContent = st.day;
+}
+function onDayChange() {
+  const v = Math.max(1, Math.min(365, parseInt(document.getElementById('dayInp').value) || 1));
+  st.day = v;
+  saveSt();
+  refreshLevelUI();
+  checkMetaHint();
 }
 
-function updateQuoteInd() {
-  const rem = st.nextQuoteAt - st.totalGens;
-  document.getElementById('quoteCnt').textContent = Math.max(0, rem);
-  document.getElementById('quoteInd').className =
-    'quote-ind' + (rem <= 0 ? ' ready' : '');
+async function checkMetaHint() {
+  try {
+    const res = await fetch('/api/meta-hint?day=' + st.day);
+    const json = await res.json();
+    const el = document.getElementById('metaBanner');
+    if (json.hasMeta) {
+      el.innerHTML = `<b>📮 今日はレベル昇格日。</b> 進行加筆メッセージが自動で挿入される準備あり（ONにすると有効）。`;
+      el.classList.add('show');
+      st._metaHint = json.message;
+    } else {
+      el.classList.remove('show');
+      st._metaHint = null;
+    }
+  } catch {}
 }
 
-function updateHistList() {
-  const sec = document.getElementById('histSec');
-  const list = document.getElementById('histList');
-  if (!st.hist.length) { sec.style.display = 'none'; return; }
-  sec.style.display = 'block';
-  list.innerHTML = st.hist.slice(-6).reverse()
-    .map(h => `<span class="hist-pill">${esc(h.title?.slice(0, 16) + '…')}</span>`)
-    .join('');
+// ===== OPTIONS =====
+function toggleTrend() {
+  const info = accountDirectory?.[st.account];
+  if (!info?.allowTrend) return;
+  st.useTrend = !st.useTrend;
+  document.getElementById('trendInd').className =
+    'trend-ind' + (st.useTrend ? ' active' : '');
+  saveSt();
+}
+function toggleOpt(key) {
+  if (key === 'review') {
+    st.forceReview = !st.forceReview;
+    document.getElementById('optReview').className = 'toggle-chip' + (st.forceReview ? ' on' : '');
+  }
+  if (key === 'meta') {
+    st.forceMeta = !st.forceMeta;
+    document.getElementById('optMeta').className = 'toggle-chip' + (st.forceMeta ? ' on' : '');
+  }
+  saveSt();
 }
 
-function pickVariation() {
-  const usedHooks = st.hist.slice(-5).map(h => h.hook);
-  const usedAngles = st.hist.slice(-5).map(h => h.angle);
-  let hook = HOOKS[Math.floor(Math.random() * HOOKS.length)];
-  let angle = ANGLES[Math.floor(Math.random() * ANGLES.length)];
-  const str = STRUCTURES[Math.floor(Math.random() * STRUCTURES.length)];
-  if (usedHooks.includes(hook)) hook = HOOKS[Math.floor(Math.random() * HOOKS.length)];
-  if (usedAngles.includes(angle)) angle = ANGLES[Math.floor(Math.random() * ANGLES.length)];
-  return { hook, angle, str };
-}
-
-function setPlan(p) {
+function setPlan(p, save = true) {
   st.plan = p;
   document.getElementById('planFree').className = 'plan-btn' + (p === 'free' ? ' active-free' : '');
   document.getElementById('planPaid').className = 'plan-btn' + (p === 'paid' ? ' active-paid' : '');
-  saveSt();
-}
-
-function pickBtn(el, group) {
-  document.querySelectorAll(`[data-group="${group}"]`).forEach(b => b.classList.remove('active'));
-  el.classList.add('active');
-  st[group] = el.dataset.val;
-  saveSt();
+  if (save) saveSt();
 }
 
 function pickType(el) {
@@ -650,6 +992,29 @@ function setStatus(s, txt) {
   document.getElementById('sTxt').textContent = txt;
 }
 
+function updateQuoteInd() {
+  const info = accountDirectory?.[st.account];
+  if (!info?.allowQuote) {
+    document.getElementById('quoteInd').className = 'quote-ind disabled';
+    return;
+  }
+  const rem = st.nextQuoteAt - st.totalGens;
+  document.getElementById('quoteCnt').textContent = Math.max(0, rem);
+  document.getElementById('quoteInd').className =
+    'quote-ind' + (rem <= 0 ? ' ready' : '');
+}
+
+function updateHistList() {
+  const sec = document.getElementById('histSec');
+  const list = document.getElementById('histList');
+  const hist = st.hist[st.account] || [];
+  if (!hist.length) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  list.innerHTML = hist.slice(-6).reverse()
+    .map(h => `<span class="hist-pill">${esc((h.title || '').slice(0, 18) + '…')}</span>`)
+    .join('');
+}
+
 // ===== GENERATE =====
 async function generate() {
   const kw = document.getElementById('kw').value.trim();
@@ -659,29 +1024,29 @@ async function generate() {
   btn.disabled = true;
   btn.textContent = '■ GENERATING...';
   btn.classList.add('loading');
-  setStatus('on', 'GENERATING');
+  setStatus('on', st.useTrend ? 'TREND+GEN' : 'GENERATING');
 
-  const lv = getLevel();
-  const useQuote = st.totalGens >= st.nextQuoteAt;
-  const { hook, angle, str } = pickVariation();
-  const recentTitles = st.hist.slice(-5).map(h => h.title).filter(Boolean);
+  const info = accountDirectory?.[st.account] || {};
+  const useQuote = info.allowQuote && (st.totalGens >= st.nextQuoteAt);
+  const recentTitles = (st.hist[st.account] || []).slice(-5).map(h => h.title).filter(Boolean);
 
   try {
     const res = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        account: st.account,
         keyword: kw,
-        brand: st.brand,
         articleType: st.type,
         persona: st.persona,
-        affiliate: document.getElementById('aff').value,
+        affiliate: st.affiliate,
         plan: st.plan,
-        level: lv.lv,
-        hook, angle,
-        structure: str,
+        dayNumber: st.day,
         recentTitles,
         useQuote,
+        useTrend: st.useTrend,
+        forceReview: st.forceReview,
+        metaInsertion: st.forceMeta ? (st._metaHint || null) : null,
         currentYear: CY
       })
     });
@@ -690,11 +1055,12 @@ async function generate() {
     if (!json.success) throw new Error(json.error || 'Unknown error');
 
     const d = json.data;
-    lastResult = { ...d, plan: st.plan, hook, angle };
+    lastResult = d;
 
     st.totalGens += 1;
-    st.hist.push({ title: d.title, hook, angle, date: Date.now() });
-    if (st.hist.length > 12) st.hist = st.hist.slice(-12);
+    if (!st.hist[st.account]) st.hist[st.account] = [];
+    st.hist[st.account].push({ title: d.title, date: Date.now() });
+    if (st.hist[st.account].length > 12) st.hist[st.account] = st.hist[st.account].slice(-12);
     if (useQuote) st.nextQuoteAt = st.totalGens + randQ();
     saveSt();
 
@@ -703,11 +1069,11 @@ async function generate() {
     document.getElementById('gcSt').textContent = st.totalGens;
     updateQuoteInd();
     updateHistList();
-    setStatus('on', 'DONE — ' + st.type.toUpperCase() + (d.quote ? ' + QUOTE' : ''));
+    setStatus('on', `DONE — ${d.levelTag}${d.reviewMode ? ' [REVIEW]' : ''}${d.trendFetched ? ' +TREND' : ''}`);
     renderPreview();
   } catch (err) {
     console.error(err);
-    setStatus('err', 'ERROR: ' + err.message.slice(0, 40));
+    setStatus('err', 'ERROR: ' + err.message.slice(0, 60));
   }
 
   btn.disabled = false;
@@ -723,7 +1089,9 @@ function renderPreview() {
   if (curTab === 'article') {
     let html = '';
 
-    // Quote card
+    if (lastResult.reviewMode) {
+      html += `<div class="review-banner">🔁 復習回モード — 前レベルの内容を別角度で再提示しています</div>`;
+    }
     if (lastResult.quote) {
       html += `<div class="quote-card">
         <div class="quote-who">▶ ${esc(lastResult.quote.person || '')} / ${esc(lastResult.quote.role || '')}
@@ -733,21 +1101,31 @@ function renderPreview() {
         <div class="quote-src">${esc(lastResult.quote.source || '')}</div>
       </div>`;
     }
+    if (lastResult.trendFetched && lastResult.trendContext) {
+      html += `<div class="trend-card">
+        <div class="trend-head">🌐 反映した海外トレンド</div>
+        <div class="trend-body">${esc(lastResult.trendContext)}</div>
+      </div>`;
+    }
 
-    // Title + copy
-    html += `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:10px">
+    html += `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px">
       <div class="art-title">${esc(lastResult.title || '')}</div>
-      <button class="copy-btn" onclick="cpText(${JSON.stringify(lastResult.article)},this)">COPY</button>
+      <button class="copy-btn" onclick='cpText(${JSON.stringify(lastResult.article || "")},this)'>COPY</button>
     </div>`;
 
-    // Meta
     html += `<div class="art-meta">
       <span>${new Date().getFullYear()}/${pad(new Date().getMonth()+1)}/${pad(new Date().getDate())}</span>
       <span class="plan-tag ${lastResult.plan}">${lastResult.plan === 'paid' ? '有料記事' : '無料記事'}</span>
+      <span class="series-tag">${esc(lastResult.seriesLabel || `DAY ${lastResult.dayNumber} / ${lastResult.levelTag}`)}</span>
       <span>${(lastResult.article || '').replace(/\s/g, '').length}字</span>
+      <span>${esc(lastResult.accountHandle || '')}</span>
+      ${(lastResult.affiliateLinks || []).length ? `<span class="series-tag" style="background:#ecfdf3;color:#0d8c4c">🔗 ${lastResult.affiliateLinks.length}件URL埋込</span>` : ''}
     </div>`;
 
-    // Body
+    if (lastResult.metaNote) {
+      html += `<div class="art-meta-note">${esc(lastResult.metaNote)}</div>`;
+    }
+
     html += '<div class="art-body">';
     (lastResult.article || '').split('\n').forEach(line => {
       if (!line.trim()) { html += '<div style="height:6px"></div>'; return; }
@@ -764,46 +1142,79 @@ function renderPreview() {
       }
     });
     html += '</div>';
+
+    if (lastResult.hashtags?.length) {
+      html += `<div class="hashtag-bar">`;
+      lastResult.hashtags.forEach(h => {
+        const en = /^#[A-Za-z]/.test(h);
+        html += `<span class="htag ${en ? 'en' : ''}" onclick='cpText(${JSON.stringify(h)},this)'>${esc(h)}</span>`;
+      });
+      html += `</div>`;
+    }
+
     el.innerHTML = html;
 
-  } else {
-    // X posts
+  } else if (curTab === 'x') {
     let html = '';
-    (lastResult.xPosts || []).forEach((post, i) => {
-      const len = post.replace(/\s/g, '').length;
-      const col = len > 135 ? '#cc4444' : len > 120 ? '#ccaa22' : '#444';
+    const posts = lastResult.xPosts || [];
+    const roles = posts.length === 5
+      ? ['FOOK', '信頼', '手順', 'note誘導', '引用RT誘発']
+      : ['訴求', '入手方法', 'レビュー誘発', '', ''];
+    posts.forEach((post, i) => {
+      const len = (post || '').replace(/\s/g, '').length;
+      const col = len > 135 ? '#cc3344' : len > 120 ? '#b57700' : '#9097b0';
       html += `<div class="x-post">
         <div class="x-hdr">
-          <span class="x-num">POST ${i + 1} / 5</span>
+          <span class="x-num">POST ${i + 1} / ${posts.length}<span class="x-role">${roles[i] || ''}</span></span>
           <span class="x-chars" style="color:${col}">${len} / 140</span>
-          <button class="copy-btn" onclick="cpText(${JSON.stringify(post)},this)">COPY</button>
+          <button class="copy-btn" onclick='cpText(${JSON.stringify(post || "")},this)'>COPY</button>
         </div>
-        <div class="x-text">${esc(post)}</div>
+        <div class="x-text">${esc(post || '')}</div>
       </div>`;
     });
-    const all = (lastResult.xPosts || []).join('\n\n---\n\n');
-    html += `<button class="all-copy" onclick="cpText(${JSON.stringify(all)},this)">■ スレッド全文コピー</button>`;
+    const all = posts.join('\n\n---\n\n');
+    html += `<button class="all-copy" onclick='cpText(${JSON.stringify(all)},this)'>■ スレッド全文コピー</button>`;
+
+    if (lastResult.hashtags?.length) {
+      html += `<div class="hashtag-bar">`;
+      lastResult.hashtags.forEach(h => {
+        const en = /^#[A-Za-z]/.test(h);
+        html += `<span class="htag ${en ? 'en' : ''}" onclick='cpText(${JSON.stringify(h)},this)'>${esc(h)}</span>`;
+      });
+      html += `</div>`;
+    }
     el.innerHTML = html;
+
+  } else if (curTab === 'trend') {
+    if (!lastResult.trendFetched) {
+      el.innerHTML = `<div class="empty-state">
+        <div class="empty-big">TREND</div>
+        <div class="empty-sub">🌐トレンドボタンをONにして生成すると海外X情報が表示されます</div>
+      </div>`;
+    } else {
+      el.innerHTML = `<div class="trend-card">
+        <div class="trend-head">🌐 反映した海外トレンド（キャプチャ）</div>
+        <div class="trend-body">${esc(lastResult.trendContext || '')}</div>
+      </div>`;
+    }
   }
 }
 
-// ===== UTILS =====
 function cpText(text, btn) {
   navigator.clipboard.writeText(text).then(() => {
     const orig = btn.textContent;
     btn.textContent = '✓ COPIED';
     btn.classList.add('ok');
-    setTimeout(() => { btn.textContent = orig; btn.classList.remove('ok'); }, 2000);
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('ok'); }, 1800);
   });
 }
 
 function esc(s) {
-  return String(s)
+  return String(s ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 }
-
 function pad(n) { return String(n).padStart(2, '0'); }
 </script>
 </body>
