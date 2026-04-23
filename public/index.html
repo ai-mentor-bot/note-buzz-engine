@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <title>NOTE BUZZ ENGINE v3.0</title>
 <style>
 /* ===== BASE ===== */
@@ -747,6 +748,17 @@ select.aff-select {
       </div>
     </div>
 
+    <div id="trendTagsSec">
+      <div class="sec-label" style="display:flex;justify-content:space-between;align-items:center">
+        <span>🔥 直近バズタグ</span>
+        <button class="copy-btn" onclick="refreshTrendTags(true)" id="refreshTagsBtn" style="padding:2px 8px;font-size:8px">更新</button>
+      </div>
+      <div id="trendTagsList" style="display:flex;flex-wrap:wrap;gap:3px;font-size:9px;color:#6a7090">
+        <span style="color:#9097b0">取得中...</span>
+      </div>
+      <div id="trendTagsMeta" style="font-size:8px;color:#9097b0;margin-top:4px"></div>
+    </div>
+
     <div id="histSec" style="display:none">
       <div class="sec-label">直近の生成</div>
       <div id="histList"></div>
@@ -843,7 +855,33 @@ setPlan(st.plan, false);
   updateQuoteInd();
   updateHistList();
   checkMetaHint();
+  refreshTrendTags(false);
 })();
+
+async function refreshTrendTags(force) {
+  const btn = document.getElementById('refreshTagsBtn');
+  const list = document.getElementById('trendTagsList');
+  const meta = document.getElementById('trendTagsMeta');
+  if (btn) { btn.textContent = '...'; btn.disabled = true; }
+  list.innerHTML = '<span style="color:#9097b0">取得中...</span>';
+  try {
+    const res = await fetch(`/api/trending-tags?account=${st.account}&force=${force ? 1 : 0}`);
+    const json = await res.json();
+    if (!json.tags?.length) {
+      list.innerHTML = '<span style="color:#9097b0">まだタグ未取得（生成実行時に自動取得されます）</span>';
+      meta.textContent = '';
+    } else {
+      list.innerHTML = json.tags.slice(0, 12).map(t =>
+        `<span class="hist-pill" style="background:#fff1ec;border-color:#ffcd9c;color:#d44a18;cursor:pointer" title="${esc(t.reason || '')}" onclick='cpText(${JSON.stringify(t.tag)},this)'>${esc(t.tag)}</span>`
+      ).join('');
+      const age = json.ageMinutes;
+      meta.textContent = age != null ? `取得から${age < 60 ? age + '分' : Math.floor(age/60) + '時間'}経過 / 次回自動更新まで${Math.max(0, json.ttlMinutes - age)}分` : '';
+    }
+  } catch (e) {
+    list.innerHTML = '<span style="color:#cc3344">取得失敗</span>';
+  }
+  if (btn) { btn.textContent = '更新'; btn.disabled = false; }
+}
 
 // ===== ACCOUNT SWITCHING =====
 function setAccount(acc, save = true) {
@@ -873,6 +911,7 @@ function setAccount(acc, save = true) {
     if (!info.allowTrend) st.useTrend = false;
   }
   if (save) saveSt();
+  if (accountDirectory) refreshTrendTags(false);
 }
 
 function buildPersonas(pool) {
