@@ -20,13 +20,21 @@ const HAS_OPENAI = !!process.env.OPENAI_API_KEY;
 const openai = HAS_OPENAI ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
 /** 現状: Render に登録した X キーはピザ屋（store / @pita_pizza1）用のみ。他アカは別キー追加まで投稿不可 */
-const HAS_X_API = !!(process.env.X_APP_KEY && process.env.X_APP_SECRET && process.env.X_ACCESS_TOKEN && process.env.X_ACCESS_TOKEN_SECRET);
-const xClientStore = HAS_X_API ? new TwitterApi({
-  appKey: process.env.X_APP_KEY,
-  appSecret: process.env.X_APP_SECRET,
-  accessToken: process.env.X_ACCESS_TOKEN,
-  accessSecret: process.env.X_ACCESS_TOKEN_SECRET
-}) : null;
+const HAS_X_CREDS = !!(process.env.X_APP_KEY && process.env.X_APP_SECRET && process.env.X_ACCESS_TOKEN && process.env.X_ACCESS_TOKEN_SECRET);
+let xClientStore = null;
+if (HAS_X_CREDS) {
+  try {
+    xClientStore = new TwitterApi({
+      appKey: process.env.X_APP_KEY,
+      appSecret: process.env.X_APP_SECRET,
+      accessToken: process.env.X_ACCESS_TOKEN,
+      accessSecret: process.env.X_ACCESS_TOKEN_SECRET
+    });
+  } catch (e) {
+    console.error('[x] TwitterApi init failed (keys不正など):', e.message);
+  }
+}
+const HAS_X_API = !!xClientStore;
 
 const X_ENABLED_ACCOUNTS = new Set(['store']); // 将来: ai_main 用に X_AI_* を足す
 
@@ -37,12 +45,16 @@ function getXClientForAccount(accountId) {
 }
 
 // =======================================================
-// SQLite PERSISTENCE
+// SQLite PERSISTENCE（Render: 未指定時は /tmp へ。書込不可のマウントで落ちるのを防ぐ）
 // =======================================================
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data.sqlite');
-const db = new Database(DB_PATH);
-db.pragma('journal_mode = WAL');
-db.exec(`
+const DB_PATH = process.env.DB_PATH
+  || (process.env.RENDER === 'true' ? path.join('/tmp', 'nbe-data.sqlite') : path.join(__dirname, 'data.sqlite'));
+
+let db;
+try {
+  db = new Database(DB_PATH);
+  db.pragma('journal_mode = WAL');
+  db.exec(`
 CREATE TABLE IF NOT EXISTS articles (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   account TEXT NOT NULL,
@@ -84,7 +96,11 @@ CREATE TABLE IF NOT EXISTS x_metrics (
   replies INTEGER DEFAULT 0,
   fetched_at INTEGER NOT NULL
 );
-`);
+  `);
+} catch (e) {
+  console.error('[fatal] SQLite init failed:', e.message, 'DB_PATH=', DB_PATH);
+  process.exit(1);
+}
 
 // =======================================================
 // COST TRACKING — 単価（USD）※2026/04時点の公表値ベース
@@ -119,10 +135,10 @@ const APP_USER = process.env.APP_USER || 'kotaro';
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// Render などのヘルスチェックは 2xx が必要。APP_PASSWORD ありだと / が 401 になり落ちるため、必ずこの前に生やす
-app.get(['/healthz', '/health'], (req, res) => {
-  res.status(200).type('text/plain').send('ok');
-});
+// Render などのヘルスチェックは 2xx が必要。APP_PASSWORD ありだと / が 401 になり落ちるため、必ずこの前に生やす（Express の古い挙動に配慮し分割）
+const sendHealth = (req, res) => res.status(200).type('text/plain').send('ok');
+app.get('/healthz', sendHealth);
+app.get('/health', sendHealth);
 
 if (APP_PASSWORD) {
   app.use((req, res, next) => {
@@ -138,7 +154,12 @@ if (APP_PASSWORD) {
 } else {
   console.log('[auth] APP_PASSWORD not set — running OPEN (set it before deploying to Render)');
 }
-app.use(express.static('public'));
+const publicDir = path.join(__dirname, 'public');
+if (!fs.existsSync(publicDir)) {
+  console.error('[fatal] public/ not found:', publicDir, 'cwd=', process.cwd());
+  process.exit(1);
+}
+app.use(express.static(publicDir));
 
 // =======================================================
 // IMAGE GENERATION (DALL-E 3)
@@ -1069,5 +1090,8 @@ app.get('/api/features', (req, res) => {
   });
 });
 
-app.listen(PORT, '0.0.0.0', () => console.log(`NOTE BUZZ ENGINE v3.2 listening on 0.0.0.0:${PORT}`));
-console.log(`[features] image=${HAS_OPENAI} xapi=${HAS_X_API} auth=${!!APP_PASSWORD}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`NOTE BUZZ ENGINE v3.2 listening on 0.0.0.0:${PORT}`);
+  console.log(`[boot] RENDER=${process.env.RENDER} NODE_ENV=${process.env.NODE_ENV} DB_PATH=${DB_PATH} cwd=${process.cwd()}`);
+  console.log(`[features] image=${HAS_OPENAI} xapi=${HAS_X_API} auth=${!!APP_PASSWORD}`);
+});

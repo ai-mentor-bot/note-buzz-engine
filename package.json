@@ -6,6 +6,7 @@
   },
   "main": "server.js",
   "scripts": {
+    "build": "node --check server.js && node -e \"const D=require('better-sqlite3'); const d=new D(':memory:'); d.exec('SELECT 1'); d.close(); console.log('[build] sqlite ok');\"",
     "start": "node server.js",
     "dev": "node --watch server.js"
   },

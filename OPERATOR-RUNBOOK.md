@@ -37,6 +37,12 @@
 
 - 実装の話の最後に **必ず**「**次にあなたがやること**（番号付き3〜5行）」を付ける（`.cursor/rules` の NBE 用ルールと整合）
 
+## デプロイが「ステータス 1」で終了（ビルドコマンド）
+
+- ダッシュボードの **Build Command** が **`npm run build`** のままなのに、`package.json` に **`build` スクリプトがない**と **exit 1** になる（Render よくある）。
+- いまのリポジトリは **`build` あり**（`server.js` の文法チェック + SQLite スモーク）。Blueprint なら **`npm install && npm run build`**。
+- 手動で直すなら **Build** = `npm install && npm run build` または **Build** = `npm install`（`build` を走らせないなら dashboard から `npm run build` を外す）。
+
 ## デプロイが「ステータス 1」で終了（ヘルスチェック）
 
 - **APP_PASSWORD を Render に入れている**と、未設定の `/` は **401**。Render のヘルスチェックは **2xx/3xx** 必須のため失敗しうる。

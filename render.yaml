@@ -4,8 +4,8 @@ services:
     env: node
     # ヘルスチェック: APP_PASSWORD 時は / が 401 になるため専用パスを使う
     healthCheckPath: /healthz
-    # Node 20 + prebuild 利用（ビルドで rebuild しない方が Render では安定しやすい）
-    buildCommand: npm install
+    # npm run build は「lint 相当 + better-sqlite3 ネイティブが Linux で動くか」確認（ダッシュボードで build 必須のときも落ちない）
+    buildCommand: npm install && npm run build
     startCommand: node server.js
     envVars:
       - key: NODE_VERSION
