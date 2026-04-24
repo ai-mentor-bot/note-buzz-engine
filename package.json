@@ -6,7 +6,6 @@
   },
   "main": "server.js",
   "scripts": {
-    "postinstall": "npm rebuild better-sqlite3",
     "start": "node server.js",
     "dev": "node --watch server.js"
   },

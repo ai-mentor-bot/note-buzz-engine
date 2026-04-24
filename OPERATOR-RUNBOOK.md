@@ -42,5 +42,5 @@
 - **失敗したコミットは本番に反映されない**。最後の **Succeeded** が表示されている。
 - Render → 失敗した **Deploy** を開き、**Build** ログと **Deploy** ログの **先頭の `Error` / `ERR!`** 行を確認（よくあるのは `better-sqlite3` の `node-gyp`、**Node バージョン不足**、`npm` のネットワーク、**起動直後の例外**）。
 - 対策（ダッシュボード）: **Environment** に `NODE_VERSION` = `20.18.1`（または 20 系）を入れ、**Save** 後 **Manual deploy**。
-- エラー例 `better_sqlite3.node` / `ERR_DLOPEN` / `The module 'better_sqlite3' was compiled against` → **Node 20** に揃え、`package.json` の `postinstall`（`npm rebuild better-sqlite3`）を入れたうえで **Clear build cache & deploy**。
+- エラー例 `better_sqlite3.node` / `ERR_DLOPEN` / `The module 'better_sqlite3' was compiled against` → **Node 20**（`NODE_VERSION=20.18.1` と `package.json` の `engines`）に揃え、**Clear build cache & deploy**。ビルドで `rebuild` は使わない（prebuild バイナリで十分なことが多い。ビルドが OOM/exit1 になる原因にもなりやすい）。
 - まだ分からないときは、ログの **20〜30 行**（個人情報を消して）を貼ると切り分けしやすい。
