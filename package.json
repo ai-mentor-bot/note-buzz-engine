@@ -1,8 +1,12 @@
 {
   "name": "note-buzz-engine",
   "version": "3.2.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "main": "server.js",
   "scripts": {
+    "postinstall": "npm rebuild better-sqlite3",
     "start": "node server.js",
     "dev": "node --watch server.js"
   },

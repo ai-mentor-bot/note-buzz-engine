@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<title>NOTE BUZZ ENGINE v3.0</title>
+<title>NOTE BUZZ ENGINE v3.2</title>
 <style>
 /* ===== BASE ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -757,7 +757,7 @@ select.aff-select {
   <!-- TOPBAR -->
   <div class="topbar">
     <div class="logo">NOTE BUZZ <em>ENGINE</em></div>
-    <div class="v-tag">v3.0</div>
+    <div class="v-tag">v3.2</div>
 
     <div class="acc-tabs">
       <button class="acc-tab" data-acc="ai_main" onclick="setAccount('ai_main')">AI総合</button>
@@ -932,7 +932,7 @@ let curTab = 'article';
 let lastResult = null;
 let accountDirectory = null;
 let levelsFromServer = null;
-let features = { image: false, xAutoPost: false, xMetrics: false, auth: false };
+let features = { image: false, xAutoPost: false, xMetrics: false, auth: false, xAccounts: {} };
 
 // ===== BOOT =====
 document.getElementById('yrTag').textContent = CY + '年';
@@ -956,8 +956,8 @@ setPlan(st.plan, false);
   renderFeatureStatus();
   setAccount(st.account, false);
   refreshLevelUI();
-  updateQuoteInd();
-  updateHistList();
+updateQuoteInd();
+updateHistList();
   checkMetaHint();
   refreshTrendTags(false);
 
@@ -967,14 +967,26 @@ setPlan(st.plan, false);
 
 function renderFeatureStatus() {
   const el = document.getElementById('featStatus');
+  const xStore = features.xAccounts?.store;
   const fs = [
     { label: '画像', on: features.image },
-    { label: 'X投稿', on: features.xAutoPost },
+    { label: 'X(店舗)', on: !!xStore },
     { label: '認証', on: features.auth }
   ];
   el.innerHTML = fs.map(f =>
     `<span class="feat-badge ${f.on ? 'feat-on' : 'feat-off'}">${f.on ? '✓' : '✕'} ${f.label}</span>`
   ).join('');
+}
+
+function syncXPostButton() {
+  const xBtn = document.getElementById('optXpost');
+  if (!xBtn) return;
+  const acc = st.account;
+  const canX = !!features.xAccounts?.[acc];
+  xBtn.style.opacity = canX ? '1' : '0.55';
+  xBtn.title = canX
+    ? '店舗アカ @pita_pizza1 としてスレッド投稿'
+    : 'X APIは店舗用キーのみ登録済み。「店舗」タブで生成した記事から投稿してください。';
 }
 
 async function refreshTrendTags(force) {
@@ -1031,6 +1043,7 @@ function setAccount(acc, save = true) {
   }
   if (save) saveSt();
   if (accountDirectory) refreshTrendTags(false);
+  syncXPostButton();
 }
 
 function buildPersonas(pool) {
@@ -1160,15 +1173,20 @@ document.getElementById('costTag').addEventListener('click', openCost);
 
 // ===== X POST =====
 async function postToX() {
-  if (!features.xAutoPost) {
-    alert('X API keys が未設定です。\n.env に X_APP_KEY / X_APP_SECRET / X_ACCESS_TOKEN / X_ACCESS_TOKEN_SECRET を設定してください。');
+  const acc = lastResult?.account || st.account;
+  if (!features.xAccounts?.[acc]) {
+    if (!features.xAutoPost) {
+      alert('X API keys が未設定です。\nRender の Environment に X_APP_KEY など4点を設定してください。');
+    } else {
+      alert('登録されている X API は店舗（@pita_pizza1）用です。\n\n手順:\n1. 上部で「店舗」を選択\n2. キーワードで生成\n3. このボタンで投稿\n\nAI総合・セミナー用は別途キー発行後に対応します。');
+    }
     return;
   }
   if (!lastResult?.xPosts?.length) {
     alert('先に記事を生成してください。');
     return;
   }
-  if (!confirm(`${lastResult.accountHandle} として${lastResult.xPosts.length}個のポストをスレッドで投稿します。実行しますか？`)) return;
+  if (!confirm(`${lastResult.accountHandle || '@pita_pizza1'} として${lastResult.xPosts.length}個のポストをスレッドで投稿します。実行しますか？`)) return;
 
   const btn = document.getElementById('optXpost');
   btn.textContent = '投稿中...';
@@ -1178,6 +1196,7 @@ async function postToX() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         articleId: lastResult.articleId,
+        account: acc,
         posts: lastResult.xPosts,
         imageUrl: lastResult.imageUrl
       })
@@ -1263,6 +1282,7 @@ async function loadArticle(id) {
     const a = await res.json();
     lastResult = {
       articleId: a.id,
+      account: a.account,
       title: a.title, article: a.article,
       xPosts: a.x_posts, hashtags: a.hashtags,
       plan: a.plan, dayNumber: a.day, level: a.level,

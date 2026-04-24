@@ -19,13 +19,22 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const HAS_OPENAI = !!process.env.OPENAI_API_KEY;
 const openai = HAS_OPENAI ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
+/** 現状: Render に登録した X キーはピザ屋（store / @pita_pizza1）用のみ。他アカは別キー追加まで投稿不可 */
 const HAS_X_API = !!(process.env.X_APP_KEY && process.env.X_APP_SECRET && process.env.X_ACCESS_TOKEN && process.env.X_ACCESS_TOKEN_SECRET);
-const xClient = HAS_X_API ? new TwitterApi({
+const xClientStore = HAS_X_API ? new TwitterApi({
   appKey: process.env.X_APP_KEY,
   appSecret: process.env.X_APP_SECRET,
   accessToken: process.env.X_ACCESS_TOKEN,
   accessSecret: process.env.X_ACCESS_TOKEN_SECRET
 }) : null;
+
+const X_ENABLED_ACCOUNTS = new Set(['store']); // 将来: ai_main 用に X_AI_* を足す
+
+function getXClientForAccount(accountId) {
+  if (!HAS_X_API || !accountId) return null;
+  if (!X_ENABLED_ACCOUNTS.has(accountId)) return null;
+  return xClientStore;
+}
 
 // =======================================================
 // SQLite PERSISTENCE
@@ -942,15 +951,39 @@ app.post('/api/regenerate-image', async (req, res) => {
 app.post('/api/post-to-x', async (req, res) => {
   if (!HAS_X_API) return res.status(400).json({ error: 'X API keys not configured', hint: 'Set X_APP_KEY / X_APP_SECRET / X_ACCESS_TOKEN / X_ACCESS_TOKEN_SECRET in .env' });
 
-  const { articleId, posts, imageUrl } = req.body;
+  const { articleId, posts, imageUrl, account: bodyAccount } = req.body;
   if (!posts?.length) return res.status(400).json({ error: 'posts required' });
+
+  let accountId = bodyAccount || null;
+  if (articleId) {
+    const row = db.prepare(`SELECT account FROM articles WHERE id = ?`).get(articleId);
+    if (!row) return res.status(404).json({ error: 'article not found' });
+    if (accountId && accountId !== row.account) {
+      return res.status(400).json({ error: 'account mismatch', detail: '本文のアカウントと指定が一致しません' });
+    }
+    accountId = row.account;
+  }
+  if (!accountId) return res.status(400).json({ error: 'account required', hint: 'articleId を送るか、body に account: "store" を含めてください' });
+
+  const xClient = getXClientForAccount(accountId);
+  if (!xClient) {
+    return res.status(403).json({
+      error: 'X API is not configured for this account',
+      account: accountId,
+      hint: '現在 Render に登録されているキーは店舗（store / @pita_pizza1）用のみです。AI総合・セミナー用は別途キーを発行してから拡張します。'
+    });
+  }
 
   try {
     let mediaId = null;
     if (imageUrl) {
       const imgResp = await fetch(imageUrl);
       const buf = Buffer.from(await imgResp.arrayBuffer());
-      const upload = await xClient.v1.uploadMedia(buf, { mimeType: 'image/png' });
+      const ctype = imgResp.headers.get('content-type') || '';
+      const mime = ctype.includes('jpeg') || ctype.includes('jpg') ? 'image/jpeg'
+        : ctype.includes('webp') ? 'image/webp'
+          : ctype.includes('gif') ? 'image/gif' : 'image/png';
+      const upload = await xClient.v1.uploadMedia(buf, { mimeType: mime });
       mediaId = upload;
     }
 
@@ -982,7 +1015,13 @@ app.post('/api/fetch-x-metrics', async (req, res) => {
   if (!HAS_X_API) return res.status(400).json({ error: 'X API keys not configured' });
 
   try {
-    const tweets = db.prepare(`SELECT tweet_id, article_id FROM x_metrics ORDER BY fetched_at ASC LIMIT 100`).all();
+    const tweets = db.prepare(`
+      SELECT m.tweet_id, m.article_id
+      FROM x_metrics m
+      JOIN articles a ON a.id = m.article_id AND a.account IN ('store')
+      ORDER BY m.fetched_at ASC
+      LIMIT 100
+    `).all();
     if (!tweets.length) return res.json({ updated: 0, message: 'no tweets tracked yet' });
 
     const ids = tweets.map(t => t.tweet_id);
@@ -1007,14 +1046,21 @@ app.post('/api/fetch-x-metrics', async (req, res) => {
 // FEATURES ENDPOINT — UI feature availability check
 // =======================================================
 app.get('/api/features', (req, res) => {
+  const xAccounts = {
+    ai_main: false,
+    store: !!(HAS_X_API && X_ENABLED_ACCOUNTS.has('store')),
+    affi_seminar: false
+  };
   res.json({
     image: HAS_OPENAI,
-    xAutoPost: HAS_X_API,
-    xMetrics: HAS_X_API,
+    xAutoPost: HAS_X_API && X_ENABLED_ACCOUNTS.size > 0,
+    xAccounts,
+    xMetrics: HAS_X_API && xAccounts.store,
     auth: !!APP_PASSWORD,
-    dbPath: DB_PATH
+    dbPath: DB_PATH,
+    xNote: '登録中のXキーは店舗（@pita_pizza1）投稿用です'
   });
 });
 
-app.listen(PORT, () => console.log(`NOTE BUZZ ENGINE v3.2 running on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`NOTE BUZZ ENGINE v3.2 listening on 0.0.0.0:${PORT}`));
 console.log(`[features] image=${HAS_OPENAI} xapi=${HAS_X_API} auth=${!!APP_PASSWORD}`);

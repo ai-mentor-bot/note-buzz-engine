@@ -2,9 +2,12 @@ services:
   - type: web
     name: note-buzz-engine
     env: node
+    # Node 20 + ビルド後の再コンパイルで better-sqlite3 の .node 不一致を防ぐ
     buildCommand: npm install
     startCommand: node server.js
     envVars:
+      - key: NODE_VERSION
+        value: "20.18.1"
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: NODE_ENV
