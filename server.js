@@ -118,9 +118,16 @@ const APP_PASSWORD = process.env.APP_PASSWORD;
 const APP_USER = process.env.APP_USER || 'kotaro';
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// Render などのヘルスチェックは 2xx が必要。APP_PASSWORD ありだと / が 401 になり落ちるため、必ずこの前に生やす
+app.get(['/healthz', '/health'], (req, res) => {
+  res.status(200).type('text/plain').send('ok');
+});
+
 if (APP_PASSWORD) {
   app.use((req, res, next) => {
     if (req.path === '/favicon.svg' || req.path === '/favicon.ico') return next();
+    if (req.path === '/healthz' || req.path === '/health') return next();
     return basicAuth({
       users: { [APP_USER]: APP_PASSWORD },
       challenge: true,

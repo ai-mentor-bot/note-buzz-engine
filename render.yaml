@@ -2,7 +2,9 @@ services:
   - type: web
     name: note-buzz-engine
     env: node
-    # Node 20 + ビルド後の再コンパイルで better-sqlite3 の .node 不一致を防ぐ
+    # ヘルスチェック: APP_PASSWORD 時は / が 401 になるため専用パスを使う
+    healthCheckPath: /healthz
+    # Node 20 + prebuild 利用（ビルドで rebuild しない方が Render では安定しやすい）
     buildCommand: npm install
     startCommand: node server.js
     envVars:
