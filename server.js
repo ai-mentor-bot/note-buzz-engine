@@ -52,6 +52,11 @@ const DB_PATH = process.env.DB_PATH
 
 let db;
 try {
+  // 例: Render の永続ディスクを /var/data にマウントして DB_PATH=/var/data/data.sqlite にした直後、ディレクトリ未作成で落ちる
+  if (DB_PATH && DB_PATH !== ':memory:') {
+    const dir = path.dirname(DB_PATH);
+    fs.mkdirSync(dir, { recursive: true });
+  }
   db = new Database(DB_PATH);
   db.pragma('journal_mode = WAL');
   db.exec(`
@@ -98,7 +103,7 @@ CREATE TABLE IF NOT EXISTS x_metrics (
 );
   `);
 } catch (e) {
-  console.error('[fatal] SQLite init failed:', e.message, 'DB_PATH=', DB_PATH);
+  console.error('[fatal] SQLite init failed / SQLiteの初期化に失敗:', e.message, 'DB_PATH=', DB_PATH);
   process.exit(1);
 }
 
