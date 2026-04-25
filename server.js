@@ -157,6 +157,16 @@ function claudeCost(usage, webSearchCount = 0) {
 // =======================================================
 const APP_PASSWORD = process.env.APP_PASSWORD;
 const APP_USER = process.env.APP_USER || 'kotaro';
+
+// Render ダッシュの既定 Health は "/" になりがち。APP_PASSWORD 時は Basic 必須のため 401 → 2xx にならず失敗。
+// ブラウザ（HTML を要求）だけ通常フローへ。プローブ/監視系（Accept に text/html がない）は 200（body は GET のみ "ok"）。
+if (process.env.RENDER === 'true' && APP_PASSWORD) {
+  const wantsHtmlDoc = (req) => /(text\/html|application\/xhtml)/i.test(req.get('Accept') || '');
+  app.get('/', (req, res, next) => (wantsHtmlDoc(req) ? next() : res.status(200).type('text/plain').send('ok')));
+  app.head('/', (req, res, next) => (wantsHtmlDoc(req) ? next() : res.status(200).end()));
+  console.log('[render] RENDER+auth: non-html GET/HEAD / → 200 (health probe); HTML Accept → app');
+}
+
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
@@ -1256,7 +1266,7 @@ app.get('/api/features', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`NOTE BUZZ ENGINE v3.3.2 listening on 0.0.0.0:${PORT}`);
+  console.log(`NOTE BUZZ ENGINE v3.3.3 listening on 0.0.0.0:${PORT}`);
   console.log(`[boot] RENDER=${process.env.RENDER} NODE_ENV=${process.env.NODE_ENV} DB_PATH=${DB_PATH} cwd=${process.cwd()}`);
   console.log(`[features] image=${HAS_OPENAI} xapi=${HAS_X_API} auth=${!!APP_PASSWORD}`);
 });
