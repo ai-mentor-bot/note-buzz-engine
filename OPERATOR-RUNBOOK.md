@@ -49,6 +49,7 @@
 - **APP_PASSWORD を Render に入れている**と、未設定の `/` は **401**。Render のヘルスチェックは **2xx/3xx** 必須のため失敗しうる。
 - 対策: コードは **`/healthz`（と `/health`）**で `200 ok` を返す。Blueprint では **`healthCheckPath: /healthz`**。
 - ダッシュボードのみ運用の場合は **Settings → Health Check Path** を `/healthz` に手動合わせ。
+- **手動で新規 Web サービスを作った**（`note-xxx.onrender.com` など）場合、Blueprint を使っていても **そのサービス**の **Health Check Path** が空や `/` のままだと**タイムアウト**する。必ず **`/healthz`** を設定して Save → Redeploy。
 
 ## デプロイが失敗して本番が古い版のまま（例: Git は v3.2 なのに画面は 3.0）
 

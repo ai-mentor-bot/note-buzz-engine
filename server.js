@@ -12,6 +12,15 @@ const Database = require('better-sqlite3');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Render 内部ヘルス: 2xx 必須。APP_PASSWORD 時は / が 401 になる。
+// 他の require や DB より**先**に生やす（プローブが早期に 200 を受け取れる）
+const _health = (req, res) => res.status(200).type('text/plain').send('ok');
+const _healthHead = (req, res) => res.status(200).end();
+app.get('/healthz', _health);
+app.head('/healthz', _healthHead);
+app.get('/health', _health);
+app.head('/health', _healthHead);
+
 // =======================================================
 // CLIENTS (graceful degradation — missing keys = feature off)
 // =======================================================
@@ -142,10 +151,7 @@ const APP_USER = process.env.APP_USER || 'kotaro';
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// Render などのヘルスチェックは 2xx が必要。APP_PASSWORD ありだと / が 401 になり落ちるため、必ずこの前に生やす（Express の古い挙動に配慮し分割）
-const sendHealth = (req, res) => res.status(200).type('text/plain').send('ok');
-app.get('/healthz', sendHealth);
-app.get('/health', sendHealth);
+// /healthz はファイル先頭で登録済み（上記）
 
 if (APP_PASSWORD) {
   app.use((req, res, next) => {
