@@ -1,6 +1,6 @@
 # NOTE BUZZ ENGINE — オペ手順（会話の手戻り防止用）
 
-**版数の正:** `package.json` の `version` と、Render ログの `NOTE BUZZ ENGINE v3.3.3 listening`（等）
+**版数の正:** `package.json` の `version` と、Render ログの `NOTE BUZZ ENGINE v3.3.4 listening`（等）
 
 ---
 
@@ -47,7 +47,7 @@
 ## デプロイが「ステータス 1」で終了（ヘルスチェック）
 
 - **APP_PASSWORD を Render に入れている**と、未設定の `/` は **401**。Render のヘルスチェックは **2xx/3xx** 必須のため失敗しうる。
-- 対策: コードは **`/healthz`（と `/health`）**で `200 ok` を返す。Blueprint では **`healthCheckPath: /healthz`**。加えて **`RENDER` + パスワード時**は、`Accept` に `text/html` がない `GET/HEAD /` も 200（ダッシュの既定 `"/"` 用の保険）。
+- 対策: コードは **`/healthz`（と `/health`）**で `200 ok` を返す。Blueprint では **`healthCheckPath: /healthz`**。加えて **`RENDER` + パスワード時**は **`GET/HEAD /`** を **Basic 有無 + UA/Accept** で分岐（監視系 UA や `Render` を含む UA は 200；実ブラウザ+HTML のみ Basic）。
 - ダッシュボードのみ運用の場合は **Settings → Health Check Path** を `/healthz` に手動合わせ（**末尾の `/` なし**で揃える。`/` や空は不可）。
 - **手動で新規 Web サービスを作った**（`note-xxx.onrender.com` など）場合、Blueprint を使っていても **そのサービス**の **Health Check Path** が空や `/` のままだと**タイムアウト**する。必ず **`/healthz`** を設定して Save → Redeploy。
 - 本番確認: ブラウザか `curl` で **`https://<ホスト名>/healthz`** が **200** で本文 `ok`（**Basic 認証なし**）であること。401 ならパス違いか古い版。

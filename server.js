@@ -159,12 +159,20 @@ const APP_PASSWORD = process.env.APP_PASSWORD;
 const APP_USER = process.env.APP_USER || 'kotaro';
 
 // Render ダッシュの既定 Health は "/" になりがち。APP_PASSWORD 時は Basic 必須のため 401 → 2xx にならず失敗。
-// ブラウザ（HTML を要求）だけ通常フローへ。プローブ/監視系（Accept に text/html がない）は 200（body は GET のみ "ok"）。
+// プローブは送ってくる Accept/UA のパターンが一定でない（text/html 付きのことも）。Basic を付けてこないなら 200、
+// 実ブラウザ + HTML 要求かつ未認証だけ Basic フローへ送る（401 + challenge）。
 if (process.env.RENDER === 'true' && APP_PASSWORD) {
+  const looksLikeHealthBot = (req) => /curl|Wget|Go-http|okhttp|Render|HealthCheck|probe|kube|StatusCake|Uptime|Pingdom|ELB-Health|Amazon-Route|Prometheus|Blackbox|datadog|newrelic|synthetic/i.test(req.get('User-Agent') || '');
+  const looksLikeBrowser = (req) => /Mozilla|Chrome|Safari|Firefox|Edg|Opera|OPR|CriOS|FxiOS|SamsungBrowser|Mobile\//i.test(req.get('User-Agent') || '');
   const wantsHtmlDoc = (req) => /(text\/html|application\/xhtml)/i.test(req.get('Accept') || '');
-  app.get('/', (req, res, next) => (wantsHtmlDoc(req) ? next() : res.status(200).type('text/plain').send('ok')));
-  app.head('/', (req, res, next) => (wantsHtmlDoc(req) ? next() : res.status(200).end()));
-  console.log('[render] RENDER+auth: non-html GET/HEAD / → 200 (health probe); HTML Accept → app');
+  const goToBasicAuth = (req) => {
+    if (req.get('Authorization')) return true; // 認証付き → 下流（Basic 検証・静的配信）
+    if (looksLikeHealthBot(req)) return false; // 監視・ヘルス系 UA は 200（Mozilla+HTML の誤判定も防ぐ）
+    return looksLikeBrowser(req) && wantsHtmlDoc(req);
+  };
+  app.get('/', (req, res, next) => (goToBasicAuth(req) ? next() : res.status(200).type('text/plain').send('ok')));
+  app.head('/', (req, res, next) => (goToBasicAuth(req) ? next() : res.status(200).end()));
+  console.log('[render] RENDER+auth: GET/HEAD / → 200 unless (browser+HTML no auth) or has Authorization');
 }
 
 app.use(cors());
@@ -1266,7 +1274,7 @@ app.get('/api/features', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`NOTE BUZZ ENGINE v3.3.3 listening on 0.0.0.0:${PORT}`);
+  console.log(`NOTE BUZZ ENGINE v3.3.4 listening on 0.0.0.0:${PORT}`);
   console.log(`[boot] RENDER=${process.env.RENDER} NODE_ENV=${process.env.NODE_ENV} DB_PATH=${DB_PATH} cwd=${process.cwd()}`);
   console.log(`[features] image=${HAS_OPENAI} xapi=${HAS_X_API} auth=${!!APP_PASSWORD}`);
 });
