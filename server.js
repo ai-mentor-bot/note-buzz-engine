@@ -102,8 +102,9 @@ CREATE TABLE IF NOT EXISTS x_metrics (
   fetched_at INTEGER NOT NULL
 );
   `);
-} catch (e) {
-  console.error('[fatal] SQLite init failed / SQLiteの初期化に失敗:', e.message, 'DB_PATH=', DB_PATH);
+} catch (err) {
+  const msg = err instanceof Error ? err.message : String(err);
+  console.error('[fatal] SQLite init failed / SQLiteの初期化に失敗:', msg, 'DB_PATH=', DB_PATH);
   process.exit(1);
 }
 
@@ -114,7 +115,8 @@ const RATES = {
   claude_sonnet_4_in: 3 / 1_000_000,      // $3/M in
   claude_sonnet_4_out: 15 / 1_000_000,    // $15/M out
   anthropic_web_search: 0.01,             // $0.01/search
-  dalle3_standard_1024: 0.04,             // $0.04/image
+  dalle3_standard_1024: 0.04,             // $0.04 / 1024 image
+  dalle3_standard_wide: 0.08,            // $0.08 / 1024x1792 or 1792x1024
   openai_embed_small: 0.02 / 1_000_000,   // $0.02/M tokens
   usd_jpy: parseFloat(process.env.USD_JPY || '150')
 };
@@ -167,51 +169,146 @@ if (!fs.existsSync(publicDir)) {
 app.use(express.static(publicDir));
 
 // =======================================================
-// IMAGE GENERATION (DALL-E 3)
+// IMAGE: Claude ブリーフ + 外付け用3プロンプト + DALL·E3（用途別サイズ）
 // =======================================================
-async function generateImagePromptFromArticle({ title, articleExcerpt, accountId }) {
-  const style = accountId === 'store'
-    ? '高級感ある商品写真・食欲をそそるライティング・マクロ撮影・スタジオフォト調'
-    : 'モダン・ミニマル・フラットイラスト・テクノロジー感・温かみのある色味（オレンジ＋ブルー系）・テキストレス';
+const IMAGE_SLOTS = ['hero', 'ogp', 'ig_square', 'ig_story'];
 
-  const system = `あなたはXの投稿画像デザイナーです。記事タイトルと抜粋から、インパクトのあるヒーロー画像用のDALL-E 3プロンプトを英語で作成してください。画像にテキストは入れないでください（AIの文字生成は失敗するため）。出力はプロンプト本文のみ、説明は不要です。`;
-  const user = `タイトル: ${title}\n抜粋: ${articleExcerpt.slice(0, 400)}\nスタイル: ${style}\n\nDALL-E 3用プロンプトを180字以内の英語で出力:`;
+function dalleSizeForSlot (slot) {
+  if (slot === 'ogp' || slot === 'note_ogp') return { size: '1792x1024', usd: RATES.dalle3_standard_wide, tag: 'wide' };
+  if (slot === 'ig_story' || slot === 'story') return { size: '1024x1792', usd: RATES.dalle3_standard_wide, tag: 'tall' };
+  return { size: '1024x1024', usd: RATES.dalle3_standard_1024, tag: 'sq' };
+}
 
+function buildInstagramProHint ({ title, xPosts, imageSlot, accountId }) {
+  const ar = { ig_square: '1:1（フィード推奨）', ig_story: '9:16（ストーリー）', ogp: '横長（注: インスタ主戦なら1:1 or 4:5も検討）', hero: '1:1 汎用' }[imageSlot] || '1:1';
+  const xArr = Array.isArray(xPosts) ? xPosts : [];
+  const first = (xArr[0] && String(xArr[0])) || String(title || '');
+  return {
+    aspectRatioTarget: ar,
+    suggestedCaption: first.slice(0, 2_200),
+    howTo: 'NBE から **Instagram へ自動投稿（Graph API）**は未接続。作成画面に画像＋文を**手動**で貼る。インスタProのインサイトは Metaビジネススイート / アプリで確認。'
+  };
+}
+
+/**
+ * 返却: { brief, prompts: [3 strings], slotNote, model }
+ * Cursor の「visual-generation-brief」スキルと同方針（外付けIdeogram等へコピー可）
+ */
+async function generateImageBriefBundle ({ title, articleExcerpt, accountId, imageSlot = 'hero' }) {
+  const isStore = accountId === 'store';
+  const style = isStore
+    ? '飲食・商品アピール。食欲・温かい光。価格・店名の捏造は禁止。テキスト入り厳禁。'
+    : '学習・AI・テック。モダン・オレンジ+ブルー系。テキスト入り厳禁。';
+  const slotLine = {
+    hero: '正方形に近いヒーロー/サムネ想定',
+    ogp: '横長 ワイド（note・OGP・リンク用）',
+    note_ogp: '横長 ワイド（note・OGP）',
+    ig_square: 'Instagram 1:1 中央構図',
+    ig_story: '縦長 9:16 寄り ストーリー用'
+  }[imageSlot] || '汎用';
+
+  const system = `あなたはビジュアルAD。DALL·E3 / Midjourney / Ideogram 等に使える**英語プロンプトを3本**。画像内に**文字・価格・ロゴ**を入れない（AI文字は汚いため）。
+
+有効な**JSON1つだけ**を出力。キー:
+- "brief": string（日本語、ブリーフ4〜6行）
+- "prompts": string[] 長さ3。各200文字以下の英語
+- "slotNote": string（日本語1行。用途: ${slotLine}）
+
+${style}
+`;
+  const user = `タイトル: ${title}
+抜粋: ${(articleExcerpt || '').slice(0, 500)}
+imageSlot: ${imageSlot}`;
+
+  const fallback = {
+    brief: '外付け画像生成用のブリーフ。テキストなし、スタイル重視。',
+    prompts: [
+      `Modern photoreal food photography, appetizing, studio lighting, no text, no logo — ${String(title).slice(0, 40)}`,
+      `Cinematic still life, shallow depth, warm tone, no text — ${String(title).slice(0, 40)}`,
+      `Top-down food styling, clean background, no text — ${String(title).slice(0, 40)}`
+    ],
+    slotNote: slotLine,
+    model: 'claude-sonnet-4-20250514'
+  };
+  if (!client) {
+    return fallback;
+  }
   try {
     const msg = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 400,
+      max_tokens: 1_200,
       system,
       messages: [{ role: 'user', content: user }]
     });
-    const prompt = (msg.content || []).map(c => c.text || '').join(' ').trim();
+    const raw = (msg.content || []).map(c => c.text || '').join('').trim();
+    let j = null;
+    const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const jsonStr = (fence ? fence[1] : raw).trim();
+    try {
+      j = JSON.parse(jsonStr);
+    } catch {
+      j = null;
+    }
     const cost = claudeCost(msg.usage);
-    trackCost({ provider: 'anthropic', kind: 'image-prompt-gen', inTokens: cost.inT, outTokens: cost.outT, usd: cost.usd });
-    return prompt;
+    trackCost({ provider: 'anthropic', kind: 'image-brief', inTokens: cost.inT, outTokens: cost.outT, usd: cost.usd });
+    if (j && Array.isArray(j.prompts) && j.prompts.length) {
+      return {
+        brief: String(j.brief || '').slice(0, 1_200),
+        prompts: j.prompts.slice(0, 3).map(p => String(p).slice(0, 500)),
+        slotNote: String(j.slotNote || slotLine),
+        model: 'claude-sonnet-4-20250514'
+      };
+    }
   } catch (e) {
-    return `Modern flat illustration for article titled "${title}". Tech vibe, orange and blue palette, no text.`;
+    console.warn('[image-brief] claude fail:', e.message);
   }
+  return fallback;
 }
 
-async function generateHeroImage({ title, articleExcerpt, accountId }) {
-  if (!HAS_OPENAI) return null;
+async function dalleFromPrompt (prompt, sizeSpec) {
+  if (!HAS_OPENAI || !openai) return null;
+  const { size, usd } = sizeSpec;
+  const resp = await openai.images.generate({
+    model: 'dall-e-3',
+    prompt,
+    n: 1,
+    size,
+    quality: 'standard',
+    response_format: 'url'
+  });
+  const url = resp.data?.[0]?.url;
+  const revisedPrompt = resp.data?.[0]?.revised_prompt || prompt;
+  trackCost({ provider: 'openai', kind: 'dalle3', units: 1, usd, meta: { prompt: prompt.slice(0, 200), size } });
+  return { url, revisedPrompt, prompt, size };
+}
+
+/** imageMode: "dalle" | "brief" — brief 時は DALL·E 呼ばず imageBrief のみ */
+async function generateHeroImage ({ title, articleExcerpt, accountId, imageSlot = 'hero', imageMode = 'dalle' }) {
+  const bundle = await generateImageBriefBundle({ title, articleExcerpt, accountId, imageSlot });
+  const primaryPrompt = (bundle.prompts && bundle.prompts[0]) || '';
+
+  if (imageMode === 'brief' || !HAS_OPENAI) {
+    return {
+      imageBrief: bundle,
+      imageUrl: null,
+      prompt: primaryPrompt,
+      revisedPrompt: null
+    };
+  }
+  const sizeSpec = dalleSizeForSlot(imageSlot);
   try {
-    const prompt = await generateImagePromptFromArticle({ title, articleExcerpt, accountId });
-    const resp = await openai.images.generate({
-      model: 'dall-e-3',
-      prompt,
-      n: 1,
-      size: '1024x1024',
-      quality: 'standard',
-      response_format: 'url'
-    });
-    const url = resp.data?.[0]?.url;
-    const revisedPrompt = resp.data?.[0]?.revised_prompt || prompt;
-    trackCost({ provider: 'openai', kind: 'dalle3', units: 1, usd: RATES.dalle3_standard_1024, meta: { prompt: prompt.slice(0, 200) } });
-    return { url, prompt, revisedPrompt };
+    const d = await dalleFromPrompt(primaryPrompt, sizeSpec);
+    if (!d?.url) return { imageBrief: bundle, imageUrl: null, prompt: primaryPrompt, revisedPrompt: null };
+    return {
+      imageBrief: bundle,
+      imageUrl: d.url,
+      prompt: d.prompt,
+      revisedPrompt: d.revisedPrompt,
+      dalleSize: sizeSpec.size
+    };
   } catch (e) {
     console.warn('[image-gen] failed:', e.message);
-    return null;
+    return { imageBrief: bundle, imageUrl: null, prompt: primaryPrompt, revisedPrompt: null, error: e.message };
   }
 }
 
@@ -684,6 +781,10 @@ app.post('/api/generate', async (req, res) => {
     useQuote = false,
     useTrend = false,
     useImage = true,
+    /** dalle: Claudeブリーフ→DALL·E3  |  brief: 外付けAI用（プロンプト3本+ブリーフのみ。OPENAI不要） */
+    imageMode = 'dalle',
+    /** hero | ogp | ig_square | ig_story */
+    imageSlot = 'hero',
     forceReview = false,
     metaInsertion = null,
     currentYear
@@ -775,13 +876,17 @@ app.post('/api/generate', async (req, res) => {
     const similar = findSimilarRecent(account, embedding, 0.86, 30);
     const dupWarning = similar.length ? similar[0] : null;
 
-    // Hero image (parallel after Claude gen)
+    // Hero / OGP / Insta: Claude ブリーフ + 任意で DALL·E3
+    const slot = IMAGE_SLOTS.includes(imageSlot) ? imageSlot : 'hero';
+    const mode = imageMode === 'brief' ? 'brief' : 'dalle';
     let image = null;
-    if (useImage && HAS_OPENAI) {
+    if (useImage) {
       image = await generateHeroImage({
         title: parsed.title || keyword,
         articleExcerpt: parsed.article || '',
-        accountId: account
+        accountId: account,
+        imageSlot: slot,
+        imageMode: mode
       });
     }
 
@@ -793,11 +898,18 @@ app.post('/api/generate', async (req, res) => {
       parsed.article || null,
       JSON.stringify(parsed.xPosts || []),
       JSON.stringify(parsed.hashtags || []),
-      image?.url || null,
+      image?.imageUrl || null,
       embedding ? JSON.stringify(embedding) : null,
-      JSON.stringify({ hook: selHook, angle: selAngle, structure: selStructure, reviewMode, metaInsertion: !!metaInsertion, trendFetched }),
+      JSON.stringify({
+        hook: selHook, angle: selAngle, structure: selStructure, reviewMode, metaInsertion: !!metaInsertion, trendFetched,
+        imageMode: useImage ? mode : null, imageSlot: useImage ? slot : null, imageBrief: useImage && image?.imageBrief ? image.imageBrief : null
+      }),
       Date.now()
     );
+
+    const igHint = useImage
+      ? buildInstagramProHint({ title: parsed.title, xPosts: parsed.xPosts, imageSlot: slot, accountId: account })
+      : null;
 
     res.json({
       success: true,
@@ -820,10 +932,15 @@ app.post('/api/generate', async (req, res) => {
         affiliateLinks: affiliateLinks.map(l => ({ label: l.label, url: l.url })),
         trendingTags: trendingTags.map(t => t.tag),
         trendingTagsFull: trendingTags,
-        imageUrl: image?.url || null,
-        imagePrompt: image?.revisedPrompt || null,
+        imageUrl: image?.imageUrl || null,
+        imagePrompt: image?.revisedPrompt || image?.prompt || null,
+        imageBrief: useImage ? image?.imageBrief : null,
+        imageMode: useImage ? mode : null,
+        imageSlot: useImage ? slot : null,
+        dalleSize: image?.dalleSize || null,
+        instagramProHint: igHint,
         duplicateWarning: dupWarning,
-        imageAvailable: HAS_OPENAI
+        imageAvailable: mode === 'brief' ? true : HAS_OPENAI
       }
     });
   } catch (err) {
@@ -946,33 +1063,60 @@ app.get('/api/articles/:id', (req, res) => {
 });
 
 // =======================================================
+// STANDALONE IMAGE BRIEF（外付けAI用。DALL·E 不要）
+// =======================================================
+app.post('/api/image-brief', async (req, res) => {
+  const { title, articleExcerpt = '', account = 'ai_main', imageSlot = 'hero' } = req.body;
+  if (!title) return res.status(400).json({ error: 'title required' });
+  const slot = IMAGE_SLOTS.includes(imageSlot) ? imageSlot : 'hero';
+  if (!ACCOUNTS[account]) return res.status(400).json({ error: 'invalid account' });
+  try {
+    const bundle = await generateImageBriefBundle({ title, articleExcerpt, accountId: account, imageSlot: slot });
+    return res.json({
+      success: true,
+      data: { imageBrief: bundle, imageSlot: slot, instagramProHint: buildInstagramProHint({ title, xPosts: req.body.xPosts, imageSlot: slot, accountId: account }) }
+    });
+  } catch (e) {
+    return res.status(500).json({ error: e.message || 'brief failed' });
+  }
+});
+
+// =======================================================
 // IMAGE REGENERATION ENDPOINT
 // =======================================================
 app.post('/api/regenerate-image', async (req, res) => {
-  if (!HAS_OPENAI) return res.status(400).json({ error: 'OPENAI_API_KEY not configured' });
-  const { articleId, customPrompt } = req.body;
+  const { articleId, customPrompt, imageSlot = 'hero', imageMode = 'dalle' } = req.body;
+  const im = imageMode === 'brief' ? 'brief' : 'dalle';
+  if (im === 'dalle' && !HAS_OPENAI && !customPrompt) {
+    return res.status(400).json({ error: 'OPENAI_API_KEY not configured' });
+  }
   const row = db.prepare(`SELECT * FROM articles WHERE id = ?`).get(articleId);
   if (!row) return res.status(404).json({ error: 'article not found' });
 
   try {
-    let image;
+    let out;
     if (customPrompt) {
-      const resp = await openai.images.generate({
-        model: 'dall-e-3',
-        prompt: customPrompt,
-        n: 1,
-        size: '1024x1024',
-        quality: 'standard',
-        response_format: 'url'
-      });
-      image = { url: resp.data?.[0]?.url, revisedPrompt: resp.data?.[0]?.revised_prompt || customPrompt };
-      trackCost({ provider: 'openai', kind: 'dalle3', units: 1, usd: RATES.dalle3_standard_1024 });
+      if (!HAS_OPENAI) return res.status(400).json({ error: 'OPENAI_API_KEY required for custom prompt' });
+      const sizeSpec = dalleSizeForSlot(imageSlot);
+      const d = await dalleFromPrompt(customPrompt, sizeSpec);
+      if (!d?.url) throw new Error('generation failed');
+      out = { imageUrl: d.url, revisedPrompt: d.revisedPrompt, imagePrompt: d.revisedPrompt, imageBrief: null, dalleSize: sizeSpec.size };
     } else {
-      image = await generateHeroImage({ title: row.title, articleExcerpt: row.article, accountId: row.account });
+      out = await generateHeroImage({
+        title: row.title, articleExcerpt: row.article, accountId: row.account,
+        imageSlot, imageMode: im
+      });
     }
-    if (!image?.url) throw new Error('generation failed');
-    db.prepare(`UPDATE articles SET image_url = ? WHERE id = ?`).run(image.url, articleId);
-    res.json({ imageUrl: image.url, prompt: image.revisedPrompt });
+    if (im === 'dalle' && !out?.imageUrl) throw new Error('generation failed');
+    if (out?.imageUrl) {
+      db.prepare(`UPDATE articles SET image_url = ? WHERE id = ?`).run(out.imageUrl, articleId);
+    }
+    res.json({
+      imageUrl: out.imageUrl || null,
+      prompt: out.revisedPrompt || out.imagePrompt,
+      imageBrief: out.imageBrief,
+      dalleSize: out.dalleSize
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1086,6 +1230,7 @@ app.get('/api/features', (req, res) => {
   };
   res.json({
     image: HAS_OPENAI,
+    imageBrief: true,
     xAutoPost: HAS_X_API && X_ENABLED_ACCOUNTS.size > 0,
     xAccounts,
     xMetrics: HAS_X_API && xAccounts.store,
@@ -1096,7 +1241,7 @@ app.get('/api/features', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`NOTE BUZZ ENGINE v3.2 listening on 0.0.0.0:${PORT}`);
+  console.log(`NOTE BUZZ ENGINE v3.3.1 listening on 0.0.0.0:${PORT}`);
   console.log(`[boot] RENDER=${process.env.RENDER} NODE_ENV=${process.env.NODE_ENV} DB_PATH=${DB_PATH} cwd=${process.cwd()}`);
   console.log(`[features] image=${HAS_OPENAI} xapi=${HAS_X_API} auth=${!!APP_PASSWORD}`);
 });

@@ -2,12 +2,16 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#f6f7fb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<title>NOTE BUZZ ENGINE v3.2</title>
+<title>NOTE BUZZ ENGINE v3.3.1</title>
 <style>
 /* ===== BASE ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
 body {
   font-family: 'SF Pro Text', 'Helvetica Neue', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
   background: #f6f7fb;
@@ -16,6 +20,7 @@ body {
   height: 100vh;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  touch-action: manipulation;
 }
 
 /* ===== LAYOUT ===== */
@@ -749,6 +754,88 @@ select.aff-select {
 .s-dot { width: 6px; height: 6px; border-radius: 50%; background: #d4d7e0; }
 .s-dot.on { background: #1ec070; box-shadow: 0 0 6px #6fd9a3; }
 .s-dot.err { background: #ff4466; }
+
+/* ===== MOBILE / 携帯（縦持ち想定 〜720px） ===== */
+@media (max-width: 720px) {
+  html, body {
+    height: auto;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
+  }
+  .topbar {
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    padding-top: max(8px, env(safe-area-inset-top, 0px));
+    gap: 8px 10px;
+    row-gap: 8px;
+  }
+  .logo { font-size: 11px; }
+  .acc-tabs { margin-left: 0; width: 100%; justify-content: flex-start; }
+  .acc-tab {
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+  .acc-info { border-left: none; width: 100%; padding: 4px 0; }
+  .day-counter, .level-badge, .trend-ind, .quote-ind, .plan-toggle, .yr-tag, .cost-tag {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .sidebar {
+    width: 100%;
+    max-width: 100%;
+    max-height: none;
+    border-right: none;
+    border-bottom: 1px solid #e5e7ee;
+    padding: 12px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  }
+  .main {
+    min-height: 50vh;
+    flex: 1;
+  }
+  .tabs {
+    flex-wrap: wrap;
+    padding: 4px;
+  }
+  .tab {
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 11px;
+  }
+  .preview {
+    padding: 16px 14px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .gen-btn { min-height: 48px; font-size: 12px; padding: 14px; }
+  .toggle-chip { min-height: 40px; padding: 8px 12px; }
+  .type-btn, .pbtn { min-height: 44px; }
+  .copy-btn, .all-copy { min-height: 40px; padding: 8px 12px; font-size: 10px; }
+  .statusbar {
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    font-size: 8px;
+    row-gap: 4px;
+  }
+  .cost-modal-body {
+    min-width: 0;
+    width: min(100vw - 24px, 480px);
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .hero-image { max-width: 100%; }
+}
 </style>
 </head>
 <body>
@@ -757,7 +844,7 @@ select.aff-select {
   <!-- TOPBAR -->
   <div class="topbar">
     <div class="logo">NOTE BUZZ <em>ENGINE</em></div>
-    <div class="v-tag">v3.2</div>
+    <div class="v-tag">v3.3.1</div>
 
     <div class="acc-tabs">
       <button class="acc-tab" data-acc="ai_main" onclick="setAccount('ai_main')">AI総合</button>
@@ -823,6 +910,19 @@ select.aff-select {
         <button class="toggle-chip on" id="optImage" onclick="toggleOpt('image')">🎨 画像</button>
         <button class="toggle-chip" id="optReview" onclick="toggleOpt('review')">🔁 復習回</button>
         <button class="toggle-chip" id="optMeta" onclick="toggleOpt('meta')">📮 進行加筆</button>
+      </div>
+      <div id="imageSubOpts" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+        <span style="font-size:8px;color:#6a7090">画:</span>
+        <select class="aff-select" id="imageModeSel" style="max-width:200px" onchange="onImageSubChange()">
+          <option value="dalle">DALL·E3 自動</option>
+          <option value="brief">外付けAI（ﾌﾞﾘｰﾌ+英語3本）</option>
+        </select>
+        <select class="aff-select" id="imageSlotSel" style="max-width:200px" title="用途（DALL·Eの解像度が切り替わる）" onchange="onImageSubChange()">
+          <option value="hero">汎用 / 1:1</option>
+          <option value="ogp">横長 (OGP)</option>
+          <option value="ig_square">Instagram 1:1</option>
+          <option value="ig_story">IGストーリー 縦</option>
+        </select>
       </div>
       <div class="toggle-row" style="margin-top:4px">
         <button class="toggle-chip" id="optXpost" onclick="postToX()" title="Xに自動投稿（要API設定）">✕ Xに投稿</button>
@@ -910,6 +1010,8 @@ function defSt() {
     totalGens: 0,
     useTrend: false,
     useImage: true,
+    imageMode: 'dalle',
+    imageSlot: 'hero',
     forceReview: false,
     forceMeta: false,
     nextQuoteAt: randQ()
@@ -932,7 +1034,7 @@ let curTab = 'article';
 let lastResult = null;
 let accountDirectory = null;
 let levelsFromServer = null;
-let features = { image: false, xAutoPost: false, xMetrics: false, auth: false, xAccounts: {} };
+let features = { image: false, imageBrief: false, xAutoPost: false, xMetrics: false, auth: false, xAccounts: {} };
 
 // ===== BOOT =====
 document.getElementById('yrTag').textContent = CY + '年';
@@ -954,6 +1056,10 @@ setPlan(st.plan, false);
     accountDirectory = null;
   }
   renderFeatureStatus();
+  const imSel = document.getElementById('imageModeSel');
+  const isSel = document.getElementById('imageSlotSel');
+  if (imSel) imSel.value = st.imageMode || 'dalle';
+  if (isSel) isSel.value = st.imageSlot || 'hero';
   setAccount(st.account, false);
   refreshLevelUI();
 updateQuoteInd();
@@ -963,13 +1069,16 @@ updateHistList();
 
   // Sync image option based on state
   document.getElementById('optImage').className = 'toggle-chip' + (st.useImage ? ' on' : '');
+  const subOpt = document.getElementById('imageSubOpts');
+  if (subOpt) { subOpt.style.opacity = st.useImage ? '1' : '0.45'; subOpt.style.pointerEvents = st.useImage ? 'auto' : 'none'; }
 })();
 
 function renderFeatureStatus() {
   const el = document.getElementById('featStatus');
   const xStore = features.xAccounts?.store;
   const fs = [
-    { label: '画像', on: features.image },
+    { label: 'DALL·E', on: features.image },
+    { label: 'ﾌﾞﾘｰﾌ', on: !!features.imageBrief },
     { label: 'X(店舗)', on: !!xStore },
     { label: '認証', on: features.auth }
   ];
@@ -1137,7 +1246,14 @@ function toggleOpt(key) {
   if (key === 'image') {
     st.useImage = !st.useImage;
     document.getElementById('optImage').className = 'toggle-chip' + (st.useImage ? ' on' : '');
+    const sub = document.getElementById('imageSubOpts');
+    if (sub) { sub.style.opacity = st.useImage ? '1' : '0.45'; sub.style.pointerEvents = st.useImage ? 'auto' : 'none'; }
   }
+  saveSt();
+}
+function onImageSubChange() {
+  st.imageMode = document.getElementById('imageModeSel')?.value || 'dalle';
+  st.imageSlot = document.getElementById('imageSlotSel')?.value || 'hero';
   saveSt();
 }
 
@@ -1216,8 +1332,8 @@ async function postToX() {
 
 // ===== IMAGE REGEN =====
 async function regenerateImage() {
-  if (!features.image) {
-    alert('OPENAI_API_KEY が未設定です。');
+  if ((st.imageMode || 'dalle') === 'dalle' && !features.image) {
+    alert('OPENAI_API_KEY が未設定です。「外付けAI（ﾌﾞﾘｰﾌ）」に切替るか、.envを設定。');
     return;
   }
   if (!lastResult?.articleId) return;
@@ -1227,16 +1343,26 @@ async function regenerateImage() {
   try {
     const res = await fetch('/api/regenerate-image', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ articleId: lastResult.articleId, customPrompt: customPrompt || null })
+      body: JSON.stringify({
+        articleId: lastResult.articleId,
+        customPrompt: customPrompt || null,
+        imageSlot: st.imageSlot || 'hero',
+        imageMode: (st.imageMode || 'dalle') === 'brief' ? 'brief' : 'dalle'
+      })
     });
     const j = await res.json();
+    if (j.error) { alert('再生成: ' + j.error); return; }
     if (j.imageUrl) {
       lastResult.imageUrl = j.imageUrl;
       lastResult.imagePrompt = j.prompt;
+      if (j.dalleSize) lastResult.dalleSize = j.dalleSize;
+    }
+    if (j.imageBrief) lastResult.imageBrief = j.imageBrief;
+    if (j.imageUrl || j.imageBrief) {
       renderPreview();
       refreshCosts();
     } else {
-      alert('再生成失敗: ' + (j.error || ''));
+      alert('再生成失敗: 画像なし（briefモードの場合は画面のﾌﾞﾘｰﾌ欄）');
     }
   } catch (e) {
     alert(e.message);
@@ -1383,6 +1509,8 @@ async function generate() {
         useQuote,
         useTrend: st.useTrend,
         useImage: st.useImage,
+        imageMode: st.useImage ? (st.imageMode || 'dalle') : 'dalle',
+        imageSlot: st.useImage ? (st.imageSlot || 'hero') : 'hero',
         forceReview: st.forceReview,
         metaInsertion: st.forceMeta ? (st._metaHint || null) : null,
         currentYear: CY
@@ -1407,7 +1535,8 @@ async function generate() {
     document.getElementById('gcSt').textContent = st.totalGens;
     updateQuoteInd();
     updateHistList();
-    setStatus('on', `DONE — ${d.levelTag}${d.reviewMode ? ' [REVIEW]' : ''}${d.trendFetched ? ' +TREND' : ''}${d.imageUrl ? ' +IMG' : ''}`);
+    const imTag = d.imageUrl ? ' +IMG' : ((d.imageBrief) ? ' +BRIEF' : '');
+    setStatus('on', `DONE — ${d.levelTag}${d.reviewMode ? ' [REVIEW]' : ''}${d.trendFetched ? ' +TREND' : ''}${imTag}`);
     renderPreview();
     refreshCosts();
   } catch (err) {
@@ -1435,13 +1564,39 @@ function renderPreview() {
 
     if (lastResult.imageUrl) {
       html += `<img class="hero-image" src="${esc(lastResult.imageUrl)}" alt="hero">`;
+      const sz = lastResult.dalleSize ? `（${esc(lastResult.dalleSize)}）` : '';
       html += `<div class="image-actions">
         <button class="copy-btn" onclick="regenerateImage()">🎨 画像再生成</button>
         <button class="copy-btn" onclick="window.open('${esc(lastResult.imageUrl)}', '_blank')">原寸で開く</button>
         <button class="copy-btn" onclick='cpText(${JSON.stringify(lastResult.imageUrl || "")},this)'>URLコピー</button>
+        <span style="font-size:9px;color:#9097b0">${sz}</span>
       </div>`;
-    } else if (lastResult.imageAvailable === false && st.useImage) {
-      html += `<div class="dup-warning" style="background:#eef2ff;border-color:#4f6af5;color:#2949d8">ℹ️ OPENAI_API_KEY未設定のため画像生成スキップ中（.envに設定すると自動添付されます）</div>`;
+    } else if (lastResult.imageAvailable === false && st.useImage && (st.imageMode || 'dalle') === 'dalle') {
+      html += `<div class="dup-warning" style="background:#eef2ff;border-color:#4f6af5;color:#2949d8">ℹ️ OPENAI_API_KEY未設定のため DALL·E 画像をスキップ。または「外付けAI（ﾌﾞﾘｰﾌ）」モードに切替。</div>`;
+    }
+    if (lastResult.imageUrl && lastResult.imageBrief) {
+      html += `<div style="font-size:9px;color:#6a7090;margin:4px 0">DALL·E 出力あり。下は同じ記事からの**外付け用**英語3本（Ideogram等へ）。</div>`;
+    }
+    if (lastResult.imageBrief) {
+      const b = lastResult.imageBrief;
+      const pList = (b.prompts || []).map((p, i) => `<div style="margin-top:6px"><b>${i + 1}.</b> <code style="font-size:9px;white-space:pre-wrap;word-break:break-all">${esc(p)}</code> <button type="button" class="copy-btn" onclick="cpText(${JSON.stringify(p)},this)">コピー</button></div>`).join('');
+      html += `<div class="trend-card" style="margin-bottom:10px">
+        <div class="trend-head">🖼 外付けAI用（Claudeﾌﾞﾘｰﾌ）</div>
+        <div class="trend-body" style="font-size:11px;white-space:pre-wrap">${esc(b.brief || '')}</div>
+        <div class="trend-body" style="font-size:9px;margin-top:4px">※ ${esc(b.slotNote || '')}</div>
+        ${pList}
+      </div>`;
+    }
+    if (lastResult.instagramProHint) {
+      const ig = lastResult.instagramProHint;
+      html += `<div class="trend-card" style="border-color:#e8b4c0;background:#fff8fa">
+        <div class="trend-head">📱 Instagram Pro（手動貼付用）</div>
+        <div class="trend-body" style="font-size:10px">推奨アスペクト: <b>${esc(ig.aspectRatioTarget || '')}</b></div>
+        <div class="trend-body" style="font-size:9px;white-space:pre-wrap;margin-top:6px">${esc(ig.howTo || '')}</div>
+        <div class="trend-body" style="font-size:10px;margin-top:8px"><b>キャプション候補（先頭X投稿流用）</b></div>
+        <div class="trend-body" style="font-size:10px;white-space:pre-wrap;max-height:120px;overflow:auto">${esc(ig.suggestedCaption || '')}</div>
+        <button type="button" class="copy-btn" onclick="cpText(${JSON.stringify((lastResult.instagramProHint && lastResult.instagramProHint.suggestedCaption) || '')},this)">キャプションコピー</button>
+      </div>`;
     }
 
     if (lastResult.reviewMode) {

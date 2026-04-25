@@ -1,6 +1,6 @@
 {
   "name": "note-buzz-engine",
-  "version": "3.2.0",
+  "version": "3.3.1",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -8,7 +8,18 @@
   "scripts": {
     "build": "node --check server.js && node -e \"const D=require('better-sqlite3'); const d=new D(':memory:'); d.exec('SELECT 1'); d.close(); console.log('[build] sqlite ok');\"",
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "data:backup": "node scripts/backup-data.mjs",
+    "pw:install": "playwright install chromium",
+    "pw:auth:pitapizza": "node playwright/scripts/auth-note.mjs pitapizza",
+    "pw:auth:bread-burger": "node playwright/scripts/auth-note.mjs bread-burger",
+    "pw:test": "playwright test",
+    "pw:test:pitapizza": "playwright test --project=pitapizza",
+    "pw:test:bread-burger": "playwright test --project=bread-burger",
+    "pw:note:draft:pitapizza": "node playwright/scripts/note-new-draft.mjs pitapizza",
+    "pw:note:draft:bread-burger": "node playwright/scripts/note-new-draft.mjs bread-burger",
+    "pw:note:draft:dry:pitapizza": "node playwright/scripts/note-new-draft.mjs pitapizza --dry",
+    "pw:note:draft:dry:bread-burger": "node playwright/scripts/note-new-draft.mjs bread-burger --dry"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
@@ -19,5 +30,8 @@
     "express-basic-auth": "^1.2.1",
     "openai": "^6.34.0",
     "twitter-api-v2": "^1.29.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0"
   }
 }

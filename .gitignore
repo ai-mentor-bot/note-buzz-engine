@@ -5,3 +5,10 @@ node_modules/
 data.sqlite
 data.sqlite-*
 *.db
+playwright/.auth/*.json
+playwright/test-results/
+test-results/
+playwright-report/
+playwright/.cache/
+playwright/artifacts/
+backups/
