@@ -1265,8 +1265,11 @@ async function openCost() {
 function closeCost() { document.getElementById('costModal').classList.remove('show'); }
 
 async function refreshCosts() {
+  const ctrl = new AbortController();
+  const t = setTimeout(function () { ctrl.abort(); }, 20000);
   try {
-    const res = await fetch('/api/costs');
+    const res = await fetch('/api/costs', { signal: ctrl.signal });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const j = await res.json();
     document.getElementById('costBig').textContent = '¥' + (j.total.jpy || 0).toLocaleString();
     document.getElementById('costTag').textContent = '¥' + (j.total.jpy || 0).toLocaleString();
@@ -1281,7 +1284,12 @@ async function refreshCosts() {
     tbl += j.byKind.map(k => `<tr><td>${k.kind} <span style="color:#9097b0">(${k.n})</span></td><td class="r">¥${(k.jpy || 0).toLocaleString()}</td></tr>`).join('');
     document.getElementById('costTable').innerHTML = tbl;
   } catch (e) {
-    document.getElementById('costTable').innerHTML = '<tr><td>取得失敗</td></tr>';
+    const msg = (e && e.name === 'AbortError')
+      ? 'タイムアウト（20秒）。サーバ起動中か回線が混み合っています。しばらく待って再タップ。'
+      : '取得失敗: ' + ((e && e.message) || '');
+    document.getElementById('costTable').innerHTML = '<tr><td>' + msg + '</td></tr>';
+  } finally {
+    clearTimeout(t);
   }
 }
 
