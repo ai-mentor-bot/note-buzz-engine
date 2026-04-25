@@ -18,8 +18,17 @@ const _health = (req, res) => res.status(200).type('text/plain').send('ok');
 const _healthHead = (req, res) => res.status(200).end();
 app.get('/healthz', _health);
 app.head('/healthz', _healthHead);
+app.get('/healthz/', _health);
+app.head('/healthz/', _healthHead);
 app.get('/health', _health);
 app.head('/health', _healthHead);
+app.get('/health/', _health);
+app.head('/health/', _healthHead);
+
+function isHealthPath(p) {
+  const n = (p || '/').replace(/\/+$/, '') || '/';
+  return n === '/healthz' || n === '/health';
+}
 
 // =======================================================
 // CLIENTS (graceful degradation — missing keys = feature off)
@@ -156,7 +165,7 @@ app.use(express.json({ limit: '10mb' }));
 if (APP_PASSWORD) {
   app.use((req, res, next) => {
     if (req.path === '/favicon.svg' || req.path === '/favicon.ico') return next();
-    if (req.path === '/healthz' || req.path === '/health') return next();
+    if (isHealthPath(req.path)) return next();
     return basicAuth({
       users: { [APP_USER]: APP_PASSWORD },
       challenge: true,
@@ -1247,7 +1256,7 @@ app.get('/api/features', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`NOTE BUZZ ENGINE v3.3.1 listening on 0.0.0.0:${PORT}`);
+  console.log(`NOTE BUZZ ENGINE v3.3.2 listening on 0.0.0.0:${PORT}`);
   console.log(`[boot] RENDER=${process.env.RENDER} NODE_ENV=${process.env.NODE_ENV} DB_PATH=${DB_PATH} cwd=${process.cwd()}`);
   console.log(`[features] image=${HAS_OPENAI} xapi=${HAS_X_API} auth=${!!APP_PASSWORD}`);
 });
