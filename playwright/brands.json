@@ -1,0 +1,12 @@
+{
+  "pitapizza": {
+    "label": "PITAPIZZA / ピタピザ",
+    "noteMypageUrl": "https://note.com/mypage",
+    "noteNewUrl": "https://note.com/notes/new"
+  },
+  "bread-burger": {
+    "label": "Bread Burger",
+    "noteMypageUrl": "https://note.com/mypage",
+    "noteNewUrl": "https://note.com/notes/new"
+  }
+}
