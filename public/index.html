@@ -244,8 +244,55 @@ body {
 .image-actions {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
   margin-bottom: 14px;
 }
+.canva-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+}
+.canva-modal-overlay.open { display: flex; }
+.canva-modal {
+  background: #fff;
+  border-radius: 14px;
+  padding: 22px 20px;
+  max-width: 480px;
+  width: 94vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+}
+.canva-modal h3 { margin: 0 0 12px; font-size: 15px; color: #1a2140; }
+.canva-field-label { font-size: 10px; color: #6a7090; margin: 10px 0 3px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.canva-text-box {
+  background: #f4f5f9;
+  border: 1px solid #dde0ec;
+  border-radius: 7px;
+  padding: 8px 10px;
+  font-size: 11px;
+  font-family: monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #2a3050;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.canva-link-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #c8cce0;
+  border-radius: 7px;
+  padding: 7px 10px;
+  font-size: 12px;
+  color: #1a2140;
+  margin-top: 4px;
+}
+.canva-link-input:focus { outline: none; border-color: #4f6af5; }
 
 .dup-warning {
   background: #fff5e0;
@@ -1577,10 +1624,11 @@ function renderPreview() {
         <button class="copy-btn" onclick="regenerateImage()">🎨 画像再生成</button>
         <button class="copy-btn" onclick="window.open('${esc(lastResult.imageUrl)}', '_blank')">原寸で開く</button>
         <button class="copy-btn" onclick='cpText(${JSON.stringify(lastResult.imageUrl || "")},this)'>URLコピー</button>
+        <button class="copy-btn" style="background:#7b2fff;color:#fff;border-color:#6a25ee" onclick="openCanvaPanel()">📐 Canva</button>
         <span style="font-size:9px;color:#9097b0">${sz}</span>
       </div>`;
     } else if (lastResult.imageAvailable === false && st.useImage && (st.imageMode || 'dalle') === 'dalle') {
-      html += `<div class="dup-warning" style="background:#eef2ff;border-color:#4f6af5;color:#2949d8">ℹ️ OPENAI_API_KEY未設定のため DALL·E 画像をスキップ。または「外付けAI（ﾌﾞﾘｰﾌ）」モードに切替。</div>`;
+      html += `<div class="dup-warning" style="background:#eef2ff;border-color:#4f6af5;color:#2949d8">ℹ️ OPENAI_API_KEY未設定のため DALL·E 画像をスキップ。Canva で手動作成するか「外付けAI（ﾌﾞﾘｰﾌ）」モードに切替。<br><button class="copy-btn" style="margin-top:6px;background:#7b2fff;color:#fff;border-color:#6a25ee" onclick="openCanvaPanel()">📐 Canva でデザイン作成</button></div>`;
     }
     if (lastResult.imageUrl && lastResult.imageBrief) {
       html += `<div style="font-size:9px;color:#6a7090;margin:4px 0">DALL·E 出力あり。下は同じ記事からの**外付け用**英語3本（Ideogram等へ）。</div>`;
@@ -1727,6 +1775,51 @@ function cpText(text, btn) {
   });
 }
 
+// ===== CANVA INTEGRATION =====
+let canvaArticleId = null;
+
+async function openCanvaPanel() {
+  const id = lastResult && lastResult.id;
+  if (!id) return alert('記事を先に生成してください');
+  canvaArticleId = id;
+  try {
+    const r = await fetch(`/api/canva-export/${id}`);
+    const d = await r.json();
+    if (d.error) return alert('エラー: ' + d.error);
+
+    document.getElementById('canvaTitle').textContent = d.title || '';
+    document.getElementById('canvaPrompt').textContent = (d.canvaSpec && d.canvaSpec.imagePromptHint) || (d.imageBrief && d.imageBrief.prompts && d.imageBrief.prompts[0]) || '（プロンプトなし）';
+    document.getElementById('canvaHowTo').textContent = (d.canvaSpec && d.canvaSpec.howTo) || '';
+    document.getElementById('canvaExistingLink').value = d.canvaDesignId || '';
+    document.getElementById('canvaModalOverlay').classList.add('open');
+  } catch (e) {
+    alert('Canva エクスポート失敗: ' + e.message);
+  }
+}
+
+function closeCanvaPanel() {
+  document.getElementById('canvaModalOverlay').classList.remove('open');
+}
+
+async function saveCanvaLink() {
+  const link = document.getElementById('canvaExistingLink').value.trim();
+  if (!link) return alert('CanvaのURLまたはIDを入力してください');
+  if (!canvaArticleId) return;
+  try {
+    const r = await fetch('/api/canva-link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ articleId: canvaArticleId, canvaDesignId: link })
+    });
+    const d = await r.json();
+    if (d.error) return alert('保存失敗: ' + d.error);
+    alert('✅ Canvaリンクを保存しました');
+    closeCanvaPanel();
+  } catch (e) {
+    alert('保存エラー: ' + e.message);
+  }
+}
+
 function esc(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
@@ -1735,5 +1828,25 @@ function esc(s) {
 }
 function pad(n) { return String(n).padStart(2, '0'); }
 </script>
+
+<!-- Canva Integration Modal -->
+<div class="canva-modal-overlay" id="canvaModalOverlay" onclick="if(event.target===this)closeCanvaPanel()">
+  <div class="canva-modal">
+    <h3>📐 Canva でデザイン作成</h3>
+    <div class="canva-field-label">タイトル</div>
+    <div class="canva-text-box" id="canvaTitle"></div>
+    <div class="canva-field-label">画像プロンプト（Canva AI画像生成 / Ideogram 等に貼付）</div>
+    <div class="canva-text-box" id="canvaPrompt" style="max-height:80px"></div>
+    <button class="copy-btn" style="margin-top:4px" onclick="cpText(document.getElementById('canvaPrompt').textContent,this)">プロンプトコピー</button>
+    <div class="canva-field-label">手順</div>
+    <div class="canva-text-box" id="canvaHowTo" style="font-family:sans-serif;line-height:1.6"></div>
+    <div class="canva-field-label">Canva デザインURL（完成後に貼付して保存）</div>
+    <input class="canva-link-input" id="canvaExistingLink" type="text" placeholder="https://www.canva.com/design/…">
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="copy-btn" style="flex:1;padding:9px 0;font-size:12px" onclick="saveCanvaLink()">💾 リンクを保存</button>
+      <button class="copy-btn" style="padding:9px 14px;font-size:12px;background:#f4f5f9;color:#4a4f70" onclick="closeCanvaPanel()">閉じる</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

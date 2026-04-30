@@ -126,6 +126,11 @@ CREATE TABLE IF NOT EXISTS x_metrics (
   process.exit(1);
 }
 
+// Runtime migration: add canva_design_id column if missing
+try {
+  db.exec(`ALTER TABLE articles ADD COLUMN canva_design_id TEXT`);
+} catch (_) { /* already exists — ignore */ }
+
 // =======================================================
 // COST TRACKING — 単価（USD）※2026/04時点の公表値ベース
 // =======================================================
@@ -544,6 +549,61 @@ const ACCOUNTS = {
   }
 };
 
+const ACCOUNT_TOPIC_GUARDS = {
+  store: {
+    forbidden: [
+      'ai',
+      'AI',
+      'chatgpt',
+      'claude',
+      'プロンプト',
+      '生成AI',
+      '副業',
+      '自動化',
+      'エージェント',
+      'llm'
+    ],
+    message: '店舗アカウントは AI/副業テーマ禁止です。商品・店舗・グルメ系キーワードに変更してください。'
+  },
+  affi_seminar: {
+    forbidden: [
+      'ピタピザ',
+      'pita',
+      'pizza',
+      'bread burger',
+      'バーガー',
+      'お取り寄せグルメ',
+      '宅飲み'
+    ],
+    message: 'セミナーアフィリ用アカウントは 店舗グルメ系テーマ禁止です。AI学習・セミナー文脈に変更してください。'
+  },
+  ai_main: {
+    forbidden: [
+      'ピタピザ',
+      'pita',
+      'pizza',
+      'bread burger',
+      'バーガー',
+      'お取り寄せ',
+      'ネット販売'
+    ],
+    message: 'AI note販売用アカウントは 店舗販売テーマ禁止です。AI活用・副業テーマに変更してください。'
+  }
+};
+
+function validateKeywordBoundary(accountId, keyword) {
+  const guard = ACCOUNT_TOPIC_GUARDS[accountId];
+  if (!guard || !keyword) return null;
+  const lower = String(keyword).toLowerCase();
+  const hit = guard.forbidden.find((w) => lower.includes(String(w).toLowerCase()));
+  if (!hit) return null;
+  return {
+    error: 'account-theme-mismatch',
+    message: guard.message,
+    keywordHit: hit
+  };
+}
+
 // =======================================================
 // LEVEL PROGRESSION — 即金体験スタート型
 // =======================================================
@@ -826,6 +886,8 @@ app.post('/api/generate', async (req, res) => {
   if (!keyword) return res.status(400).json({ error: 'keyword required' });
   const acc = ACCOUNTS[account];
   if (!acc) return res.status(400).json({ error: 'invalid account' });
+  const boundary = validateKeywordBoundary(account, keyword);
+  if (boundary) return res.status(400).json(boundary);
 
   const yr = currentYear || new Date().getFullYear();
   const day = Math.max(1, parseInt(dayNumber) || 1);
@@ -1091,6 +1153,7 @@ app.get('/api/articles/:id', (req, res) => {
     x_posts: row.x_posts ? JSON.parse(row.x_posts) : [],
     hashtags: row.hashtags ? JSON.parse(row.hashtags) : [],
     meta: row.meta ? JSON.parse(row.meta) : null,
+    canva_design_id: row.canva_design_id || null,
     embedding: undefined
   });
 });
@@ -1153,6 +1216,52 @@ app.post('/api/regenerate-image', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// =======================================================
+// CANVA EXPORT — brief + design link storage
+// =======================================================
+app.get('/api/canva-export/:id', async (req, res) => {
+  const row = db.prepare(`SELECT * FROM articles WHERE id = ?`).get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'article not found' });
+  const meta = row.meta ? JSON.parse(row.meta) : {};
+  const imageBrief = meta.imageBrief || null;
+  const account = ACCOUNTS[row.account] || {};
+  res.json({
+    articleId: row.id,
+    title: row.title,
+    excerpt: (row.article || '').slice(0, 300),
+    account: row.account,
+    accountHandle: account.handle || '',
+    imageUrl: row.image_url || null,
+    canvaDesignId: row.canva_design_id || null,
+    imageBrief: imageBrief,
+    // Canva-ready design spec
+    canvaSpec: {
+      format: 'social_media_post',
+      dimensions: '1080x1080',
+      headline: row.title || '',
+      subtext: (row.article || '').split('\n').find(l => l.trim().length > 20) || '',
+      brandHandle: account.handle || '',
+      imagePromptHint: imageBrief ? (imageBrief.prompts || [])[0] || '' : '',
+      howTo: [
+        '1. Canva を開き「SNS投稿（正方形）」テンプレートを選択',
+        '2. headline をタイトルとして貼付',
+        '3. imagePromptHint を Canva の「AI画像生成」に入力して背景画像を生成',
+        '4. brandHandle をフッターに追加',
+        '5. デザイン完了後、共有リンクをコピーして「Canvaリンクを保存」フィールドに貼付',
+      ].join('\n')
+    }
+  });
+});
+
+app.post('/api/canva-link', (req, res) => {
+  const { articleId, canvaDesignId } = req.body;
+  if (!articleId || !canvaDesignId) return res.status(400).json({ error: 'articleId and canvaDesignId required' });
+  const row = db.prepare(`SELECT id FROM articles WHERE id = ?`).get(articleId);
+  if (!row) return res.status(404).json({ error: 'article not found' });
+  db.prepare(`UPDATE articles SET canva_design_id = ? WHERE id = ?`).run(canvaDesignId, articleId);
+  res.json({ success: true, articleId, canvaDesignId });
 });
 
 // =======================================================
