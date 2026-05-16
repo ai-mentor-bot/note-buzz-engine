@@ -27,8 +27,12 @@ test('保存済みセッションで note マイページに到達できる', as
   }
   await page.goto(cfg.noteMypageUrl, { waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/note\.com/);
-  const login = page.getByRole('link', { name: 'ログイン' });
-  await expect(login).toBeHidden({ timeout: 10000 });
+  const hasLoginLink = (await page.locator('a[href*="/login"]').count()) > 0;
+  if (hasLoginLink) {
+    throw new Error(
+      `保存済みセッションが無効です: npm run pw:auth:${slug} を再実行してログインし直してください。`
+    );
+  }
   await expect(
     page.getByText(/マイページ|記事|下書き|新規|作成/iu).first()
   ).toBeVisible({ timeout: 20000 });

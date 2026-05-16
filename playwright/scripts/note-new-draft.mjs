@@ -27,7 +27,7 @@ try {
   requireSlug(slug);
 } catch {
   console.error(
-    'Usage: node note-new-draft.mjs <pitapizza|bread-burger> [--dry] [--file path/to/body.md]'
+    'Usage: node note-new-draft.mjs <store|affi-seminar|ai-main|pitapizza|bread-burger> [--dry] [--file path/to/body.md]'
   );
   process.exit(1);
 }

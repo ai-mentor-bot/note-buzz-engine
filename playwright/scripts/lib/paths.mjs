@@ -5,7 +5,13 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const REPO_ROOT = path.join(__dirname, '..', '..', '..');
-export const SLUGS = new Set(['pitapizza', 'bread-burger']);
+export const SLUGS = new Set([
+  'pitapizza',
+  'bread-burger',
+  'store',
+  'affi-seminar',
+  'ai-main',
+]);
 
 export function authPath(slug) {
   return path.join(REPO_ROOT, 'playwright', '.auth', `${slug}.json`);
@@ -18,6 +24,6 @@ export function loadBrands() {
 
 export function requireSlug(a) {
   if (!SLUGS.has(a)) {
-    throw new Error(`brand は pitapizza か bread-burger: 渡された値=${a}`);
+    throw new Error(`brand が不正です: 渡された値=${a}`);
   }
 }

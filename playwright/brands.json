@@ -8,5 +8,20 @@
     "label": "Bread Burger",
     "noteMypageUrl": "https://note.com/mypage",
     "noteNewUrl": "https://note.com/notes/new"
+  },
+  "store": {
+    "label": "お店用 / ピタピザたろう",
+    "noteMypageUrl": "https://note.com/mypage",
+    "noteNewUrl": "https://note.com/notes/new"
+  },
+  "affi-seminar": {
+    "label": "AIセミナーaferieito用 / AI活用広げたい！すぐできる！",
+    "noteMypageUrl": "https://note.com/mypage",
+    "noteNewUrl": "https://note.com/notes/new"
+  },
+  "ai-main": {
+    "label": "AIのnote販売用 / こうたろう｜飲食✕AI経営者",
+    "noteMypageUrl": "https://note.com/mypage",
+    "noteNewUrl": "https://note.com/notes/new"
   }
 }

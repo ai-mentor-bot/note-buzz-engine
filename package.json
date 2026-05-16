@@ -1,6 +1,6 @@
 {
   "name": "note-buzz-engine",
-  "version": "3.3.4",
+  "version": "3.3.8",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -10,16 +10,31 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "data:backup": "node scripts/backup-data.mjs",
+    "pw:ready": "node scripts/pc-rpa-check.mjs",
     "pw:install": "playwright install chromium",
     "pw:auth:pitapizza": "node playwright/scripts/auth-note.mjs pitapizza",
     "pw:auth:bread-burger": "node playwright/scripts/auth-note.mjs bread-burger",
+    "pw:auth:store": "node playwright/scripts/auth-note.mjs store",
+    "pw:auth:affi-seminar": "node playwright/scripts/auth-note.mjs affi-seminar",
+    "pw:auth:ai-main": "node playwright/scripts/auth-note.mjs ai-main",
     "pw:test": "playwright test",
     "pw:test:pitapizza": "playwright test --project=pitapizza",
     "pw:test:bread-burger": "playwright test --project=bread-burger",
     "pw:note:draft:pitapizza": "node playwright/scripts/note-new-draft.mjs pitapizza",
     "pw:note:draft:bread-burger": "node playwright/scripts/note-new-draft.mjs bread-burger",
+    "pw:note:draft:store": "node playwright/scripts/note-new-draft.mjs store",
+    "pw:note:draft:affi-seminar": "node playwright/scripts/note-new-draft.mjs affi-seminar",
+    "pw:note:draft:ai-main": "node playwright/scripts/note-new-draft.mjs ai-main",
     "pw:note:draft:dry:pitapizza": "node playwright/scripts/note-new-draft.mjs pitapizza --dry",
-    "pw:note:draft:dry:bread-burger": "node playwright/scripts/note-new-draft.mjs bread-burger --dry"
+    "pw:note:draft:dry:bread-burger": "node playwright/scripts/note-new-draft.mjs bread-burger --dry",
+    "pw:note:draft:dry:store": "node playwright/scripts/note-new-draft.mjs store --dry",
+    "pw:note:draft:dry:affi-seminar": "node playwright/scripts/note-new-draft.mjs affi-seminar --dry",
+    "pw:note:draft:dry:ai-main": "node playwright/scripts/note-new-draft.mjs ai-main --dry",
+    "pw:verify:pitapizza": "node playwright/scripts/note-auth-verify.mjs pitapizza",
+    "pw:verify:bread-burger": "node playwright/scripts/note-auth-verify.mjs bread-burger",
+    "pw:verify:store": "node playwright/scripts/note-auth-verify.mjs store",
+    "pw:verify:affi-seminar": "node playwright/scripts/note-auth-verify.mjs affi-seminar",
+    "pw:verify:ai-main": "node playwright/scripts/note-auth-verify.mjs ai-main"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
