@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="format-detection" content="telephone=no">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<title>NOTE BUZZ ENGINE v3.3.4</title>
+<title>NOTE BUZZ ENGINE v3.3.8</title>
 <style>
 /* ===== BASE ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -34,6 +34,7 @@ body {
 /* ===== TOPBAR ===== */
 .topbar {
   grid-column: 1 / -1;
+  grid-row: 1;
   background: #ffffff;
   border-bottom: 1px solid #e5e7ee;
   display: flex;
@@ -247,6 +248,13 @@ body {
   flex-wrap: wrap;
   margin-bottom: 14px;
 }
+
+/* Drag & Drop styles */
+#preview.drag-over {
+  background: rgba(111, 217, 163, 0.1);
+  border: 2px dashed #0d8c4c;
+}
+
 .canva-modal-overlay {
   display: none;
   position: fixed;
@@ -342,6 +350,9 @@ body {
 
 /* ===== SIDEBAR ===== */
 .sidebar {
+  grid-column: 1;
+  grid-row: 2;
+  min-height: 0;
   background: #ffffff;
   border-right: 1px solid #e5e7ee;
   padding: 16px;
@@ -514,6 +525,9 @@ select.aff-select {
 
 /* ===== MAIN ===== */
 .main {
+  grid-column: 2;
+  grid-row: 2;
+  min-height: 0;
   background: #f6f7fb;
   display: flex;
   flex-direction: column;
@@ -787,6 +801,7 @@ select.aff-select {
 /* ===== STATUS BAR ===== */
 .statusbar {
   grid-column: 1 / -1;
+  grid-row: 3;
   background: #ffffff;
   border-top: 1px solid #e5e7ee;
   display: flex;
@@ -802,14 +817,89 @@ select.aff-select {
 .s-dot.on { background: #1ec070; box-shadow: 0 0 6px #6fd9a3; }
 .s-dot.err { background: #ff4466; }
 
-/* ===== MOBILE / 携帯（縦持ち想定 〜720px） ===== */
-@media (max-width: 720px) {
+/* 直近コピー内容（長めに表示） */
+.copy-tray {
+  display: none;
+  position: fixed;
+  z-index: 80;
+  right: 10px;
+  bottom: 12px;
+  max-width: min(100vw - 20px, 440px);
+  background: #1a1d2e;
+  color: #eef0f7;
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.28);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow: hidden;
+  border: 1px solid #3a3f55;
+}
+.copy-tray-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: #252a3f;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.copy-tray-close {
+  border: none;
+  background: transparent;
+  color: #aab;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 6px;
+  font-family: inherit;
+}
+.copy-tray-body {
+  margin: 0;
+  padding: 10px 12px;
+  max-height: 28vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+}
+.copy-tray-meta {
+  padding: 6px 12px 10px;
+  font-size: 9px;
+  color: #8b92a8;
+}
+
+/* モバイル下部 GENERATE */
+.mobile-sticky-bar {
+  display: none;
+  position: sticky;
+  bottom: 0;
+  z-index: 45;
+  padding: 8px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(246,247,251,0) 0%, #f6f7fb 18%, #f6f7fb 100%);
+  border-top: 1px solid #e5e7ee;
+  justify-content: center;
+}
+.gen-btn-mobile { margin: 0; max-width: 520px; }
+
+.mobile-nav-jump {
+  display: none;
+}
+
+/* ===== MOBILE / 〜960px（スマホ横・小型タブレットまで1カラム） ===== */
+@media (max-width: 960px) {
+  #panelForm, #panelPreview { scroll-margin-top: 72px; }
   html, body {
     height: auto;
     min-height: 100dvh;
     min-height: -webkit-fill-available;
     overflow-x: hidden;
     overflow-y: auto;
+    max-width: 100vw;
+  }
+  body {
+    font-size: clamp(13px, 2.95vw, 15px);
   }
   .app {
     display: flex;
@@ -817,19 +907,97 @@ select.aff-select {
     height: auto;
     min-height: 100dvh;
     min-height: -webkit-fill-available;
+    max-width: 100vw;
+    overflow-x: clip;
   }
+  /* 結果プレビューを先に、入力は下へ */
   .topbar {
+    order: 1;
+    grid-column: unset;
+    grid-row: unset;
     flex-wrap: wrap;
     padding: 8px 12px;
     padding-top: max(8px, env(safe-area-inset-top, 0px));
     gap: 8px 10px;
     row-gap: 8px;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
   }
+  .main {
+    order: 2;
+    grid-column: unset;
+    grid-row: unset;
+    flex: none;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+    min-height: min(52svh, 520px);
+  }
+  .sidebar {
+    order: 3;
+    grid-column: unset;
+    grid-row: unset;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+    max-height: none;
+    border-right: none;
+    border-top: 1px solid #e5e7ee;
+    padding: 14px;
+    padding-bottom: max(20px, env(safe-area-inset-bottom, 0px));
+  }
+  .mobile-sticky-bar {
+    display: flex;
+    order: 4;
+  }
+  .statusbar {
+    order: 5;
+    grid-column: unset;
+    grid-row: unset;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom, 0px));
+    font-size: 8px;
+    row-gap: 4px;
+  }
+  .copy-tray {
+    right: 8px;
+    left: auto;
+    bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+    max-width: calc(100vw - 16px);
+  }
+
+  .mobile-nav-jump {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 10px;
+  }
+  .mobile-nav-jump a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 16px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #2949d8;
+    text-decoration: none;
+    border: 1px solid #c9d3ff;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(41,73,216,0.12);
+  }
+
   .logo { font-size: 11px; }
   .acc-tabs { margin-left: 0; width: 100%; justify-content: flex-start; }
   .acc-tab {
-    min-height: 40px;
-    padding: 8px 12px;
+    flex: 1;
+    min-height: 44px;
+    padding: 8px 6px;
     font-size: 11px;
   }
   .acc-info { border-left: none; width: 100%; padding: 4px 0; }
@@ -838,52 +1006,79 @@ select.aff-select {
     display: inline-flex;
     align-items: center;
   }
-  .sidebar {
-    width: 100%;
-    max-width: 100%;
-    max-height: none;
-    border-right: none;
-    border-bottom: 1px solid #e5e7ee;
-    padding: 12px;
-    padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
-  }
-  .main {
-    min-height: 50vh;
-    flex: 1;
+  .plan-toggle {
+    margin-left: 0;
+    width: auto;
+    flex-basis: auto;
   }
   .tabs {
     flex-wrap: wrap;
     padding: 4px;
   }
   .tab {
+    flex: 1;
+    min-width: calc(50% - 4px);
     min-height: 44px;
-    padding: 10px 12px;
+    padding: 10px 10px;
     font-size: 11px;
   }
   .preview {
-    padding: 16px 14px;
+    padding: 12px clamp(10px, 4vw, 14px);
     -webkit-overflow-scrolling: touch;
+    overflow-x: hidden;
+    max-width: 100%;
+    box-sizing: border-box;
   }
-  .gen-btn { min-height: 48px; font-size: 12px; padding: 14px; }
+  .gen-btn:not(.gen-btn-mobile) {
+    margin-top: 8px;
+  }
   .toggle-chip { min-height: 40px; padding: 8px 12px; }
   .type-btn, .pbtn { min-height: 44px; }
   .copy-btn, .all-copy { min-height: 40px; padding: 8px 12px; font-size: 10px; }
-  .statusbar {
-    flex-wrap: wrap;
-    padding: 8px 12px;
-    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
-    font-size: 8px;
-    row-gap: 4px;
-  }
   .cost-modal-body {
     min-width: 0;
     width: min(100vw - 24px, 480px);
     max-height: 85vh;
     overflow-y: auto;
   }
-  .hero-image { max-width: 100%; }
+  .hero-image { max-width: 100%; width: auto; height: auto; box-sizing: border-box; }
+  .preview img,
+  .preview .hero-image,
+  #preview svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+  .art-title {
+    font-size: clamp(1rem, 4.25vw, 1.35rem);
+    line-height: 1.42;
+    max-width: 100%;
+    box-sizing: border-box;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    padding-right: 4px;
+  }
+  .art-body p,
+  .art-h2,
+  .art-li,
+  .art-step,
+  .x-text,
+  .trend-body,
+  .quote-text {
+    max-width: 100%;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+  input.kw-input, select.aff-select {
+    max-width: 100%;
+    font-size: 16px;
+  }
+
+  @media (max-width: 400px) {
+    .logo { letter-spacing: 1px; font-size: 10px; }
+    .acc-tab { font-size: 10px; padding: 7px 4px; }
+    #panelForm, #panelPreview { scroll-margin-top: 64px; }
+  }
 }
-</style>
 </head>
 <body>
 <div class="app">
@@ -891,7 +1086,7 @@ select.aff-select {
   <!-- TOPBAR -->
   <div class="topbar">
     <div class="logo">NOTE BUZZ <em>ENGINE</em></div>
-    <div class="v-tag">v3.3.4</div>
+    <div class="v-tag">v3.3.7</div>
 
     <div class="acc-tabs">
       <button class="acc-tab" data-acc="ai_main" onclick="setAccount('ai_main')">AI総合</button>
@@ -922,8 +1117,9 @@ select.aff-select {
   </div>
 
   <!-- SIDEBAR -->
-  <div class="sidebar">
+  <div class="sidebar" id="panelForm">
     <div class="meta-banner" id="metaBanner"></div>
+    <div class="mobile-nav-jump"><a href="#panelPreview">結果エリアへ ▼</a></div>
 
     <div>
       <div class="sec-label">メインキーワード</div>
@@ -962,15 +1158,20 @@ select.aff-select {
         <span style="font-size:8px;color:#6a7090">画:</span>
         <select class="aff-select" id="imageModeSel" style="max-width:200px" onchange="onImageSubChange()">
           <option value="dalle">DALL·E3 自動</option>
+          <option value="canva">🎨 Canva AI（高品質デザイン）</option>
           <option value="brief">外付けAI（ﾌﾞﾘｰﾌ+英語3本）</option>
         </select>
-        <select class="aff-select" id="imageSlotSel" style="max-width:200px" title="用途（DALL·Eの解像度が切り替わる）" onchange="onImageSubChange()">
+        <select class="aff-select" id="imageSlotSel" style="max-width:200px" title="単枚モードのみ。セットON時は1:1+横長OGP固定" onchange="onImageSubChange()">
           <option value="hero">汎用 / 1:1</option>
           <option value="ogp">横長 (OGP)</option>
           <option value="ig_square">Instagram 1:1</option>
           <option value="ig_story">IGストーリー 縦</option>
         </select>
       </div>
+      <div class="toggle-row" style="margin-top:8px;padding-left:2px">
+        <button type="button" class="toggle-chip on" id="optNotePack" onclick="toggleOpt('notepack')" title="DALL·Eで正方形ヒーロー＋横長OGPを2枚同時自動生成（約2枚分の画像APIコスト）">📰 note2枚セット</button>
+      </div>
+      <div id="notePackHint" style="font-size:8px;color:#9097b0;margin-top:4px;line-height:1.4;display:none"></div>
       <div class="toggle-row" style="margin-top:4px">
         <button class="toggle-chip" id="optXpost" onclick="postToX()" title="Xに自動投稿（要API設定）">✕ Xに投稿</button>
       </div>
@@ -997,7 +1198,8 @@ select.aff-select {
   </div>
 
   <!-- MAIN -->
-  <div class="main">
+  <div class="main" id="panelPreview">
+    <div class="mobile-nav-jump"><a href="#panelForm">入力・GENERATEへ ▲</a></div>
     <div class="tabs">
       <button class="tab active" onclick="switchTab(this,'article')">■ 記事</button>
       <button class="tab" onclick="switchTab(this,'x')">✕ X投稿セット</button>
@@ -1036,12 +1238,29 @@ select.aff-select {
     <span>■ 累計生成 <span id="gcSt">0</span></span>
   </div>
 
+  <div class="mobile-sticky-bar" id="mobileStickyBar">
+    <button type="button" class="gen-btn gen-btn-mobile" id="genBtnMobile" onclick="generate()">▶ GENERATE</button>
+  </div>
+
+</div>
+
+<div id="copyTray" class="copy-tray" role="status" aria-live="polite">
+  <div class="copy-tray-hdr">
+    <span>直近コピー（約30分表示）</span>
+    <button type="button" class="copy-tray-close" onclick="dismissCopyTray()" aria-label="閉じる">×</button>
+  </div>
+  <pre class="copy-tray-body" id="copyTrayBody"></pre>
+  <div class="copy-tray-meta" id="copyTrayMeta"></div>
 </div>
 
 <script>
 // ===== CONSTANTS =====
 const SK = 'nbe_v3';
 const CY = new Date().getFullYear();
+/** コピー内容を画面に載せ続ける時間（ユーザー要望: 約30分） */
+const COPY_TRAY_TTL_MS = 30 * 60 * 1000;
+/** COPY ボタンの✓表示（トレイとは別・邪魔になりにくい程度） */
+const COPY_BTN_OK_MS = 12 * 1000;
 
 // ===== STATE =====
 function defSt() {
@@ -1059,6 +1278,7 @@ function defSt() {
     useImage: true,
     imageMode: 'dalle',
     imageSlot: 'hero',
+    multiImageNoteSet: true,
     forceReview: false,
     forceMeta: false,
     nextQuoteAt: randQ()
@@ -1071,7 +1291,9 @@ let st = (() => {
     const parsed = JSON.parse(localStorage.getItem(SK));
     if (!parsed) return defSt();
     const fresh = defSt();
-    return { ...fresh, ...parsed, hist: { ...fresh.hist, ...(parsed.hist || {}) } };
+    const merged = { ...fresh, ...parsed, hist: { ...fresh.hist, ...(parsed.hist || {}) } };
+    if (parsed.multiImageNoteSet === undefined) merged.multiImageNoteSet = fresh.multiImageNoteSet;
+    return merged;
   } catch { return defSt(); }
 })();
 
@@ -1118,6 +1340,7 @@ updateHistList();
   document.getElementById('optImage').className = 'toggle-chip' + (st.useImage ? ' on' : '');
   const subOpt = document.getElementById('imageSubOpts');
   if (subOpt) { subOpt.style.opacity = st.useImage ? '1' : '0.45'; subOpt.style.pointerEvents = st.useImage ? 'auto' : 'none'; }
+  syncNotePackUI();
 })();
 
 function renderFeatureStatus() {
@@ -1295,13 +1518,41 @@ function toggleOpt(key) {
     document.getElementById('optImage').className = 'toggle-chip' + (st.useImage ? ' on' : '');
     const sub = document.getElementById('imageSubOpts');
     if (sub) { sub.style.opacity = st.useImage ? '1' : '0.45'; sub.style.pointerEvents = st.useImage ? 'auto' : 'none'; }
+    syncNotePackUI();
+  }
+  if (key === 'notepack') {
+    st.multiImageNoteSet = !st.multiImageNoteSet;
+    syncNotePackUI();
   }
   saveSt();
 }
+function syncNotePackUI() {
+  const btn = document.getElementById('optNotePack');
+  const hint = document.getElementById('notePackHint');
+  if (!btn || !hint) return;
+  const dalle = (st.imageMode || 'dalle') === 'dalle';
+  const on = !!(dalle && st.useImage && st.multiImageNoteSet);
+  btn.className = 'toggle-chip' + (on ? ' on' : '');
+  btn.style.opacity = (!st.useImage || !dalle) ? '0.52' : '1';
+  if (on && st.useImage) {
+    hint.style.display = 'block';
+    hint.textContent = '生成時に 1024×1024 と 1792×1024 を順に自動生成します（画像APIコストは2枚分程度）。単枚のみにしたいときはこのトグルをオフに。';
+  } else if (!dalle && st.useImage) {
+    hint.style.display = 'block';
+    hint.textContent = '外付けﾌﾞﾘｰﾌのみのときは「2枚セット」は適用されません。';
+    btn.classList.remove('on');
+  } else if (!st.useImage) {
+    hint.style.display = 'none';
+  } else {
+    hint.style.display = 'none';
+  }
+}
+
 function onImageSubChange() {
   st.imageMode = document.getElementById('imageModeSel')?.value || 'dalle';
   st.imageSlot = document.getElementById('imageSlotSel')?.value || 'hero';
   saveSt();
+  syncNotePackUI();
 }
 
 // ===== COSTS =====
@@ -1402,15 +1653,26 @@ async function regenerateImage() {
         articleId: lastResult.articleId,
         customPrompt: customPrompt || null,
         imageSlot: st.imageSlot || 'hero',
-        imageMode: (st.imageMode || 'dalle') === 'brief' ? 'brief' : 'dalle'
+        imageMode: st.imageMode || 'dalle'
       })
     });
     const j = await res.json();
     if (j.error) { alert('再生成: ' + j.error); return; }
+    // Canva AIモードの場合: プロンプトを表示してCanvaへ誘導
+    if (j.imageMode === 'canva') {
+      const msg = `🎨 Canva AIプロンプト:\n\n${j.canvaPrompt}\n\n${j.hint}`;
+      if (confirm(msg + '\n\nCanvaを開きますか？')) {
+        window.open('https://www.canva.com/design/create', '_blank');
+      }
+      navigator.clipboard.writeText(j.canvaPrompt).catch(() => {});
+      return;
+    }
     if (j.imageUrl) {
       lastResult.imageUrl = j.imageUrl;
       lastResult.imagePrompt = j.prompt;
       if (j.dalleSize) lastResult.dalleSize = j.dalleSize;
+      lastResult.multiImageNoteSet = false;
+      lastResult.imageUrls = null;
     }
     if (j.imageBrief) lastResult.imageBrief = j.imageBrief;
     if (j.imageUrl || j.imageBrief) {
@@ -1422,6 +1684,200 @@ async function regenerateImage() {
   } catch (e) {
     alert(e.message);
   }
+}
+
+// ===== IMAGE UPLOAD =====
+async function uploadImage() {
+  if (!lastResult?.articleId) { alert('記事を先に生成してください'); return; }
+
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const base64Data = ev.target.result;
+        const res = await fetch('/api/upload-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ articleId: lastResult.articleId, base64Data })
+        });
+        const j = await res.json();
+        if (j.error) { alert('アップロード失敗: ' + j.error); return; }
+
+        lastResult.imageUrl = j.imageUrl;
+        lastResult.imageUrls = null;
+        lastResult.multiImageNoteSet = false;
+        delete lastResult.imagePrompt; // Remove prompt for uploaded image
+        renderPreview();
+        alert('画像がアップロードされました');
+      } catch (e) {
+        alert('エラー: ' + e.message);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
+// ===== IMAGE DELETE =====
+async function deleteImage() {
+  if (!lastResult?.articleId) { alert('記事を先に生成してください'); return; }
+  if (!confirm('この画像を削除しますか？')) return;
+
+  try {
+    const res = await fetch('/api/delete-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ articleId: lastResult.articleId })
+    });
+    const j = await res.json();
+    if (j.error) { alert('削除失敗: ' + j.error); return; }
+
+    lastResult.imageUrl = null;
+    lastResult.imageUrls = null;
+    lastResult.multiImageNoteSet = false;
+    lastResult.imageBrief = null;
+    delete lastResult.imagePrompt;
+    renderPreview();
+    alert('画像が削除されました');
+  } catch (e) {
+    alert('エラー: ' + e.message);
+  }
+}
+
+// ===== IMAGE REPLACE =====
+async function replaceImage() {
+  if (!lastResult?.articleId) { alert('記事を先に生成してください'); return; }
+  uploadImage();
+}
+
+// ===== MULTI-SLOT IMAGE MANAGEMENT =====
+async function replaceImageSlot(slot) {
+  if (!lastResult?.articleId) { alert('記事を先に生成してください'); return; }
+
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const base64Data = ev.target.result;
+        const res = await fetch('/api/upload-image-slot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            articleId: lastResult.articleId,
+            base64Data,
+            slot: slot || 'hero'
+          })
+        });
+        const j = await res.json();
+        if (j.error) { alert('アップロード失敗: ' + j.error); return; }
+
+        // Update imageUrls for multi-slot support
+        if (!lastResult.imageUrls) lastResult.imageUrls = {};
+        lastResult.imageUrls[slot || 'hero'] = j.imageUrl;
+        if (slot === 'hero' || !slot) lastResult.imageUrl = j.imageUrl;
+
+        renderPreview();
+        alert(`${slot || 'hero'} 画像がアップロードされました`);
+      } catch (e) {
+        alert('エラー: ' + e.message);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
+async function deleteImageSlot(slot) {
+  if (!lastResult?.articleId) { alert('記事を先に生成してください'); return; }
+  if (!confirm(`${slot || 'hero'} 画像を削除しますか？`)) return;
+
+  try {
+    const res = await fetch('/api/delete-image-slot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        articleId: lastResult.articleId,
+        slot: slot || 'hero'
+      })
+    });
+    const j = await res.json();
+    if (j.error) { alert('削除失敗: ' + j.error); return; }
+
+    if (!lastResult.imageUrls) lastResult.imageUrls = {};
+    delete lastResult.imageUrls[slot || 'hero'];
+    if (slot === 'hero' || !slot) lastResult.imageUrl = null;
+
+    renderPreview();
+    alert(`${slot || 'hero'} 画像が削除されました`);
+  } catch (e) {
+    alert('エラー: ' + e.message);
+  }
+}
+
+// ===== DRAG & DROP IMAGE UPLOAD =====
+function setupImageDragDrop() {
+  const preview = document.getElementById('preview');
+  if (!preview) return;
+
+  preview.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    preview.classList.add('drag-over');
+  });
+
+  preview.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    preview.classList.remove('drag-over');
+  });
+
+  preview.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    preview.classList.remove('drag-over');
+
+    if (!lastResult?.articleId) { alert('記事を先に生成してください'); return; }
+
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    if (!files.length) { alert('画像ファイルをドロップしてください'); return; }
+
+    for (const file of files) {
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        try {
+          const base64Data = ev.target.result;
+          const res = await fetch('/api/upload-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ articleId: lastResult.articleId, base64Data })
+          });
+          const j = await res.json();
+          if (j.error) { alert('アップロード失敗: ' + j.error); return; }
+
+          lastResult.imageUrl = j.imageUrl;
+          lastResult.imageUrls = null;
+          lastResult.multiImageNoteSet = false;
+          delete lastResult.imagePrompt;
+          renderPreview();
+        } catch (e) {
+          alert('エラー: ' + e.message);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  });
 }
 
 // ===== HISTORY =====
@@ -1470,6 +1926,9 @@ async function loadArticle(id) {
       levelTag: `LV.${a.level}`, seriesLabel: `DAY ${a.day} / LV.${a.level}`,
       accountHandle: accountDirectory?.[a.account]?.handle || '',
       imageUrl: a.image_url,
+      imageUrls: (a.meta && a.meta.imageUrls) || null,
+      multiImageNoteSet: !!(a.meta && a.meta.multiImageNoteSet),
+      imageBrief: a.meta?.imageBrief || null,
       reviewMode: a.meta?.reviewMode,
       trendFetched: a.meta?.trendFetched,
       affiliateLinks: [],
@@ -1539,9 +1998,11 @@ async function generate() {
   if (!kw) { document.getElementById('kw').focus(); return; }
 
   const btn = document.getElementById('genBtn');
+  const btnM = document.getElementById('genBtnMobile');
   btn.disabled = true;
   btn.textContent = '■ GENERATING...';
   btn.classList.add('loading');
+  if (btnM) { btnM.disabled = true; btnM.textContent = '■ GENERATING...'; btnM.classList.add('loading'); }
   setStatus('on', st.useTrend ? 'TREND+GEN' : 'GENERATING');
 
   const info = accountDirectory?.[st.account] || {};
@@ -1566,6 +2027,7 @@ async function generate() {
         useImage: st.useImage,
         imageMode: st.useImage ? (st.imageMode || 'dalle') : 'dalle',
         imageSlot: st.useImage ? (st.imageSlot || 'hero') : 'hero',
+        multiImageNoteSet: !!(st.useImage && (st.imageMode || 'dalle') === 'dalle' && st.multiImageNoteSet),
         forceReview: st.forceReview,
         metaInsertion: st.forceMeta ? (st._metaHint || null) : null,
         currentYear: CY
@@ -1590,10 +2052,14 @@ async function generate() {
     document.getElementById('gcSt').textContent = st.totalGens;
     updateQuoteInd();
     updateHistList();
-    const imTag = d.imageUrl ? ' +IMG' : ((d.imageBrief) ? ' +BRIEF' : '');
+    const nUrls = (d.imageUrls && typeof d.imageUrls === 'object') ? Object.keys(d.imageUrls).filter(k => d.imageUrls[k]).length : 0;
+    const imTag = nUrls >= 2 ? (` +IMG×${nUrls}`) : (d.imageUrl ? ' +IMG' : ((d.imageBrief) ? ' +BRIEF' : ''));
     setStatus('on', `DONE — ${d.levelTag}${d.reviewMode ? ' [REVIEW]' : ''}${d.trendFetched ? ' +TREND' : ''}${imTag}`);
     renderPreview();
     refreshCosts();
+    if (typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 960px)').matches) {
+      document.getElementById('panelPreview')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   } catch (err) {
     console.error(err);
     setStatus('err', 'ERROR: ' + err.message.slice(0, 60));
@@ -1602,6 +2068,11 @@ async function generate() {
   btn.disabled = false;
   btn.textContent = '▶ GENERATE';
   btn.classList.remove('loading');
+  if (btnM) {
+    btnM.disabled = false;
+    btnM.textContent = '▶ GENERATE';
+    btnM.classList.remove('loading');
+  }
 }
 
 // ===== RENDER =====
@@ -1620,15 +2091,30 @@ function renderPreview() {
     if (lastResult.imageUrl) {
       html += `<img class="hero-image" src="${esc(lastResult.imageUrl)}" alt="hero">`;
       const sz = lastResult.dalleSize ? `（${esc(lastResult.dalleSize)}）` : '';
+      const isGeneratedImg = lastResult.imageUrl?.startsWith('data:') === false && lastResult.imageUrl?.startsWith('http');
       html += `<div class="image-actions">
-        <button class="copy-btn" onclick="regenerateImage()">🎨 画像再生成</button>
+        ${isGeneratedImg ? `<button class="copy-btn" onclick="regenerateImage()">🎨 画像再生成</button>` : ''}
+        <button class="copy-btn" onclick="replaceImage()" style="background:#ff9f40;color:#fff;border-color:#ff8c1f">🔄 画像置き換え</button>
+        <button class="copy-btn" onclick="deleteImage()" style="background:#f3424f;color:#fff;border-color:#d94152">🗑 削除</button>
         <button class="copy-btn" onclick="window.open('${esc(lastResult.imageUrl)}', '_blank')">原寸で開く</button>
         <button class="copy-btn" onclick='cpText(${JSON.stringify(lastResult.imageUrl || "")},this)'>URLコピー</button>
         <button class="copy-btn" style="background:#7b2fff;color:#fff;border-color:#6a25ee" onclick="openCanvaPanel()">📐 Canva</button>
         <span style="font-size:9px;color:#9097b0">${sz}</span>
-      </div>`;
+      </div>
+      <div style="font-size:9px;color:#8a4420;margin:0 0 12px;line-height:1.55;max-width:600px;background:#fffbeb;border:1px solid #fbe1a0;border-radius:8px;padding:8px 10px"><strong>保存の注意：</strong>OpenAI の画像URLは<strong>およそ1時間程度で表示できなくなる</strong>ことがあります。noteに貼る前に「原寸で開いて」長押し保存・またはPCでダウンロードしてください。</div>`;
+      const ogPack = lastResult.imageUrls && lastResult.imageUrls.ogp;
+      if (ogPack && ogPack !== lastResult.imageUrl) {
+        html += `<div style="margin-bottom:16px;padding:12px;background:#f8f9fc;border:1px solid #e5e7ee;border-radius:10px;display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start">
+          <img src="${esc(ogPack)}" alt="ogp wide" style="max-width:100%;width:min(440px,100%);border-radius:8px;border:1px solid #dde1ec"/>
+          <div style="flex:1;min-width:160px"><div style="font-size:10px;font-weight:800;color:#1a2140;margin-bottom:6px">OGP・シェア用（横長 1792×1024）</div>
+          <div style="font-size:9px;color:#9097b0;line-height:1.5;margin-bottom:8px">noteアイキャッチとは別ファイル。リンク共有サムネ等にそのまま使えます。</div>
+          <button type="button" class="copy-btn" onclick="window.open('${esc(ogPack)}','_blank')">原寸で開く</button>
+          <button type="button" class="copy-btn" onclick='cpText(${JSON.stringify(ogPack)},this)'>URLコピー</button>
+          <button type="button" class="copy-btn" onclick="replaceImageSlot('ogp')" style="background:#ff9f40;color:#fff;border-color:#ff8c1f">🔄 置き換え</button>
+          <button type="button" class="copy-btn" onclick="deleteImageSlot('ogp')" style="background:#f3424f;color:#fff;border-color:#d94152">🗑 削除</button></div></div>`;
+      }
     } else if (lastResult.imageAvailable === false && st.useImage && (st.imageMode || 'dalle') === 'dalle') {
-      html += `<div class="dup-warning" style="background:#eef2ff;border-color:#4f6af5;color:#2949d8">ℹ️ OPENAI_API_KEY未設定のため DALL·E 画像をスキップ。Canva で手動作成するか「外付けAI（ﾌﾞﾘｰﾌ）」モードに切替。<br><button class="copy-btn" style="margin-top:6px;background:#7b2fff;color:#fff;border-color:#6a25ee" onclick="openCanvaPanel()">📐 Canva でデザイン作成</button></div>`;
+      html += `<div class="dup-warning" style="background:#eef2ff;border-color:#4f6af5;color:#2949d8">ℹ️ DALL·E 画像が出ません。Render のサービス環境変数に <code style="font-size:9px;background:#fff;padding:1px 4px;border-radius:3px">OPENAI_API_KEY</code> を追加し再デプロイするか、この画面で「外付けAI（ﾌﾞﾘｰﾌ）」に切り替えてください。<br><button class="copy-btn" style="margin-top:6px;background:#7b2fff;color:#fff;border-color:#6a25ee" onclick="openCanvaPanel()">📐 Canva でデザイン作成</button></div>`;
     }
     if (lastResult.imageUrl && lastResult.imageBrief) {
       html += `<div style="font-size:9px;color:#6a7090;margin:4px 0">DALL·E 出力あり。下は同じ記事からの**外付け用**英語3本（Ideogram等へ）。</div>`;
@@ -1719,6 +2205,7 @@ function renderPreview() {
     }
 
     el.innerHTML = html;
+    setupImageDragDrop();
 
   } else if (curTab === 'x') {
     let html = '';
@@ -1766,24 +2253,73 @@ function renderPreview() {
   }
 }
 
+
+let copyTrayHideTimer = null;
+function dismissCopyTray() {
+  const root = document.getElementById('copyTray');
+  if (root) root.style.display = 'none';
+  if (copyTrayHideTimer) {
+    clearTimeout(copyTrayHideTimer);
+    copyTrayHideTimer = null;
+  }
+}
+function showCopyTray(text) {
+  const root = document.getElementById('copyTray');
+  const body = document.getElementById('copyTrayBody');
+  const meta = document.getElementById('copyTrayMeta');
+  if (!root || !body || !meta) return;
+  const str = String(text ?? '');
+  body.textContent = str;
+  meta.textContent = str.length ? `${str.length.toLocaleString()} 文字 — 約30分で自動クローズ（×で即閉じ）` : '';
+  root.style.display = 'block';
+  if (copyTrayHideTimer) clearTimeout(copyTrayHideTimer);
+  copyTrayHideTimer = setTimeout(dismissCopyTray, COPY_TRAY_TTL_MS);
+}
+
 function cpText(text, btn) {
-  navigator.clipboard.writeText(text).then(() => {
-    const orig = btn.textContent;
-    btn.textContent = '✓ COPIED';
-    btn.classList.add('ok');
-    setTimeout(() => { btn.textContent = orig; btn.classList.remove('ok'); }, 1800);
-  });
+  const s = String(text ?? '');
+  const onDone = () => {
+    showCopyTray(s);
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = '✓ COPIED';
+      btn.classList.add('ok');
+      setTimeout(() => { btn.textContent = orig; btn.classList.remove('ok'); }, COPY_BTN_OK_MS);
+    }
+  };
+  const fallbackExec = () => {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = s;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      onDone();
+    } catch (_) {
+      showCopyTray(s + '\n\n（クリップボードにコピーできない環境の可能性。ここを長押し→コピー）');
+      if (btn) alert('自動コピーに失敗しました。画面上のパネルを長押ししてコピーしてください。');
+    }
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(s).then(onDone).catch(fallbackExec);
+  } else {
+    fallbackExec();
+  }
 }
 
 // ===== CANVA INTEGRATION =====
 let canvaArticleId = null;
 
 async function openCanvaPanel() {
-  const id = lastResult && lastResult.id;
-  if (!id) return alert('記事を先に生成してください');
-  canvaArticleId = id;
+  const aid = lastResult && (lastResult.articleId || lastResult.id);
+  if (!aid) return alert('記事を先に生成してください');
+  canvaArticleId = aid;
   try {
-    const r = await fetch(`/api/canva-export/${id}`);
+    const r = await fetch(`/api/canva-export/${aid}`);
     const d = await r.json();
     if (d.error) return alert('エラー: ' + d.error);
 

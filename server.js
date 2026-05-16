@@ -320,34 +320,90 @@ async function dalleFromPrompt (prompt, sizeSpec) {
   return { url, revisedPrompt, prompt, size };
 }
 
-/** imageMode: "dalle" | "brief" — brief 時は DALL·E 呼ばず imageBrief のみ */
-async function generateHeroImage ({ title, articleExcerpt, accountId, imageSlot = 'hero', imageMode = 'dalle' }) {
-  const bundle = await generateImageBriefBundle({ title, articleExcerpt, accountId, imageSlot });
+/**
+ * Claude ブリーフは1回。DALL·E は primarySlot + extraSlots ごとに解像度切替。
+ * imageMode brief / OPENAI なし は URL なしで brief のみ。
+ */
+async function generateImagesForArticle ({
+  title,
+  articleExcerpt,
+  accountId,
+  primarySlot = 'hero',
+  imageMode = 'dalle',
+  extraSlots = []
+}) {
+  const pSlot = IMAGE_SLOTS.includes(primarySlot) ? primarySlot : 'hero';
+  const bundle = await generateImageBriefBundle({ title, articleExcerpt, accountId, imageSlot: pSlot });
   const primaryPrompt = (bundle.prompts && bundle.prompts[0]) || '';
 
   if (imageMode === 'brief' || !HAS_OPENAI) {
     return {
       imageBrief: bundle,
       imageUrl: null,
+      imageUrls: {},
       prompt: primaryPrompt,
-      revisedPrompt: null
+      revisedPrompt: null,
+      revisedBySlot: {},
+      dalleSizeBySlot: {}
     };
   }
-  const sizeSpec = dalleSizeForSlot(imageSlot);
-  try {
-    const d = await dalleFromPrompt(primaryPrompt, sizeSpec);
-    if (!d?.url) return { imageBrief: bundle, imageUrl: null, prompt: primaryPrompt, revisedPrompt: null };
-    return {
-      imageBrief: bundle,
-      imageUrl: d.url,
-      prompt: d.prompt,
-      revisedPrompt: d.revisedPrompt,
-      dalleSize: sizeSpec.size
-    };
-  } catch (e) {
-    console.warn('[image-gen] failed:', e.message);
-    return { imageBrief: bundle, imageUrl: null, prompt: primaryPrompt, revisedPrompt: null, error: e.message };
+
+  const uniq = [...new Set([pSlot, ...extraSlots])].filter(s => IMAGE_SLOTS.includes(s));
+  const imageUrls = {};
+  const revisedBySlot = {};
+  const dalleSizeBySlot = {};
+  let lastErr = null;
+
+  for (const s of uniq) {
+    try {
+      const sizeSpec = dalleSizeForSlot(s);
+      const d = await dalleFromPrompt(primaryPrompt, sizeSpec);
+      dalleSizeBySlot[s] = sizeSpec.size;
+      if (!d?.url) continue;
+      imageUrls[s] = d.url;
+      revisedBySlot[s] = d.revisedPrompt || d.prompt || primaryPrompt;
+    } catch (e) {
+      lastErr = e;
+      console.warn('[image-gen] slot', s, e.message);
+    }
   }
+
+  const imageUrl = imageUrls[pSlot] || imageUrls.hero || imageUrls[uniq[0]] || null;
+  const revisedPrompt = imageUrl ? (revisedBySlot[pSlot] || revisedBySlot.hero || revisedBySlot[uniq.find(x => imageUrls[x])]) : null;
+
+  return {
+    imageBrief: bundle,
+    imageUrl,
+    imageUrls,
+    prompt: primaryPrompt,
+    revisedPrompt,
+    revisedBySlot,
+    dalleSizeBySlot,
+    error: !imageUrl && lastErr ? (lastErr.message || String(lastErr)) : null
+  };
+}
+
+/** imageMode: "dalle" | "brief" — brief 時は DALL·E 呼ばず imageBrief のみ */
+async function generateHeroImage ({ title, articleExcerpt, accountId, imageSlot = 'hero', imageMode = 'dalle', extraSlots = [] }) {
+  const resolved = IMAGE_SLOTS.includes(imageSlot) ? imageSlot : 'hero';
+  const r = await generateImagesForArticle({
+    title,
+    articleExcerpt,
+    accountId,
+    primarySlot: resolved,
+    imageMode,
+    extraSlots
+  });
+  const heroSize = r.imageUrls?.[resolved] ? r.dalleSizeBySlot[resolved] : null;
+  return {
+    imageBrief: r.imageBrief,
+    imageUrl: r.imageUrl,
+    imageUrls: r.imageUrls,
+    prompt: r.prompt,
+    revisedPrompt: r.revisedPrompt,
+    dalleSize: heroSize,
+    error: r.error
+  };
 }
 
 // =======================================================
@@ -878,6 +934,8 @@ app.post('/api/generate', async (req, res) => {
     imageMode = 'dalle',
     /** hero | ogp | ig_square | ig_story */
     imageSlot = 'hero',
+    /** true のとき hero(1:1)+ogp(横長) を DALL·E で同時生成（単体 imageSlot は無視） */
+    multiImageNoteSet = false,
     forceReview = false,
     metaInsertion = null,
     currentYear
@@ -974,18 +1032,24 @@ app.post('/api/generate', async (req, res) => {
     // Hero / OGP / Insta: Claude ブリーフ + 任意で DALL·E3
     const slot = IMAGE_SLOTS.includes(imageSlot) ? imageSlot : 'hero';
     const mode = imageMode === 'brief' ? 'brief' : 'dalle';
+    const wantsNotePack = !!(multiImageNoteSet && mode === 'dalle');
+    const genSlot = wantsNotePack ? 'hero' : slot;
+    const extraSlots = wantsNotePack ? ['ogp'] : [];
+
     let image = null;
     if (useImage) {
       image = await generateHeroImage({
         title: parsed.title || keyword,
         articleExcerpt: parsed.article || '',
         accountId: account,
-        imageSlot: slot,
-        imageMode: mode
+        imageSlot: genSlot,
+        imageMode: mode,
+        extraSlots
       });
     }
 
     // Persist
+    const packUrls = image?.imageUrls && Object.keys(image.imageUrls).length ? image.imageUrls : null;
     const insertStmt = db.prepare(`INSERT INTO articles(account, day, level, plan, keyword, title, article, x_posts, hashtags, image_url, embedding, meta, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
     const info = insertStmt.run(
       account, day, lv.lv, plan, keyword,
@@ -997,13 +1061,17 @@ app.post('/api/generate', async (req, res) => {
       embedding ? JSON.stringify(embedding) : null,
       JSON.stringify({
         hook: selHook, angle: selAngle, structure: selStructure, reviewMode, metaInsertion: !!metaInsertion, trendFetched,
-        imageMode: useImage ? mode : null, imageSlot: useImage ? slot : null, imageBrief: useImage && image?.imageBrief ? image.imageBrief : null
+        imageMode: useImage ? mode : null,
+        imageSlot: useImage ? (wantsNotePack ? `${genSlot}+ogp_pack` : slot) : null,
+        multiImageNoteSet: useImage ? wantsNotePack : false,
+        imageUrls: packUrls || undefined,
+        imageBrief: useImage && image?.imageBrief ? image.imageBrief : null
       }),
       Date.now()
     );
 
     const igHint = useImage
-      ? buildInstagramProHint({ title: parsed.title, xPosts: parsed.xPosts, imageSlot: slot, accountId: account })
+      ? buildInstagramProHint({ title: parsed.title, xPosts: parsed.xPosts, imageSlot: wantsNotePack ? 'hero' : slot, accountId: account })
       : null;
 
     res.json({
@@ -1028,10 +1096,12 @@ app.post('/api/generate', async (req, res) => {
         trendingTags: trendingTags.map(t => t.tag),
         trendingTagsFull: trendingTags,
         imageUrl: image?.imageUrl || null,
+        imageUrls: packUrls || null,
+        multiImageNoteSet: wantsNotePack,
         imagePrompt: image?.revisedPrompt || image?.prompt || null,
         imageBrief: useImage ? image?.imageBrief : null,
         imageMode: useImage ? mode : null,
-        imageSlot: useImage ? slot : null,
+        imageSlot: useImage ? (wantsNotePack ? `${genSlot}+ogp_pack` : slot) : null,
         dalleSize: image?.dalleSize || null,
         instagramProHint: igHint,
         duplicateWarning: dupWarning,
@@ -1182,6 +1252,24 @@ app.post('/api/image-brief', async (req, res) => {
 // =======================================================
 app.post('/api/regenerate-image', async (req, res) => {
   const { articleId, customPrompt, imageSlot = 'hero', imageMode = 'dalle' } = req.body;
+
+  // Canva AIモード: デザインプロンプトを生成して返す（MCP経由で生成）
+  if (imageMode === 'canva') {
+    const row = articleId ? db.prepare(`SELECT * FROM articles WHERE id = ?`).get(articleId) : null;
+    const title = row?.title || customPrompt || '飲食店の投稿';
+    const excerpt = (row?.article || '').slice(0, 200);
+    const account = ACCOUNTS[row?.account] || {};
+    const slotSizes = { hero: '1080x1080', ogp: '1200x630', ig_square: '1080x1080', ig_story: '1080x1920' };
+    return res.json({
+      success: true,
+      imageMode: 'canva',
+      canvaPrompt: `${title}。${excerpt ? excerpt.replace(/\n/g,' ').slice(0,100) : ''}。飲食店SNS投稿用、日本語。暖かみのあるデザイン。`,
+      canvaDesignType: imageSlot === 'ig_story' ? 'your_story' : 'instagram_post',
+      dimensions: slotSizes[imageSlot] || '1080x1080',
+      hint: 'Claude Codeで「Canvaでサムネ作って」と言えばCanva AI MCPが自動生成します。またはCanvaアプリで直接作成。',
+    });
+  }
+
   const im = imageMode === 'brief' ? 'brief' : 'dalle';
   if (im === 'dalle' && !HAS_OPENAI && !customPrompt) {
     return res.status(400).json({ error: 'OPENAI_API_KEY not configured' });
@@ -1206,6 +1294,15 @@ app.post('/api/regenerate-image', async (req, res) => {
     if (im === 'dalle' && !out?.imageUrl) throw new Error('generation failed');
     if (out?.imageUrl) {
       db.prepare(`UPDATE articles SET image_url = ? WHERE id = ?`).run(out.imageUrl, articleId);
+      try {
+        const metaCur = row.meta ? JSON.parse(row.meta) : {};
+        delete metaCur.imageUrls;
+        metaCur.multiImageNoteSet = false;
+        if (out.imageBrief != null) metaCur.imageBrief = out.imageBrief;
+        db.prepare(`UPDATE articles SET meta = ? WHERE id = ?`).run(JSON.stringify(metaCur), articleId);
+      } catch (eMeta) {
+        console.warn('[regenerate-image] meta merge:', eMeta.message);
+      }
     }
     res.json({
       imageUrl: out.imageUrl || null,
@@ -1214,6 +1311,145 @@ app.post('/api/regenerate-image', async (req, res) => {
       dalleSize: out.dalleSize
     });
   } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// =======================================================
+// IMAGE UPLOAD (Base64 from UI)
+// =======================================================
+app.post('/api/upload-image', async (req, res) => {
+  const { articleId, base64Data } = req.body;
+  if (!articleId || !base64Data) {
+    return res.status(400).json({ error: 'articleId and base64Data required' });
+  }
+
+  try {
+    const row = db.prepare(`SELECT * FROM articles WHERE id = ?`).get(articleId);
+    if (!row) return res.status(404).json({ error: 'article not found' });
+
+    // Convert base64 to data URL (store as URL format for compatibility)
+    const dataUrl = base64Data.startsWith('data:') ? base64Data : `data:image/png;base64,${base64Data}`;
+
+    // Update DB
+    db.prepare(`UPDATE articles SET image_url = ? WHERE id = ?`).run(dataUrl, articleId);
+
+    res.json({
+      success: true,
+      imageUrl: dataUrl,
+      message: 'Image uploaded successfully'
+    });
+  } catch (e) {
+    console.error('[upload-image]', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// =======================================================
+// IMAGE DELETE
+// =======================================================
+app.post('/api/delete-image', async (req, res) => {
+  const { articleId } = req.body;
+  if (!articleId) {
+    return res.status(400).json({ error: 'articleId required' });
+  }
+
+  try {
+    const row = db.prepare(`SELECT * FROM articles WHERE id = ?`).get(articleId);
+    if (!row) return res.status(404).json({ error: 'article not found' });
+
+    // Clear image_url
+    db.prepare(`UPDATE articles SET image_url = NULL WHERE id = ?`).run(articleId);
+
+    // Clear image-related metadata
+    try {
+      const metaCur = row.meta ? JSON.parse(row.meta) : {};
+      delete metaCur.imageUrls;
+      delete metaCur.multiImageNoteSet;
+      delete metaCur.imageBrief;
+      db.prepare(`UPDATE articles SET meta = ? WHERE id = ?`).run(JSON.stringify(metaCur), articleId);
+    } catch (eMeta) {
+      console.warn('[delete-image] meta clear:', eMeta.message);
+    }
+
+    res.json({
+      success: true,
+      message: 'Image deleted successfully'
+    });
+  } catch (e) {
+    console.error('[delete-image]', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// =======================================================
+// MULTI-SLOT IMAGE UPLOAD
+// =======================================================
+app.post('/api/upload-image-slot', async (req, res) => {
+  const { articleId, base64Data, slot = 'hero' } = req.body;
+  if (!articleId || !base64Data) {
+    return res.status(400).json({ error: 'articleId and base64Data required' });
+  }
+
+  try {
+    const row = db.prepare(`SELECT * FROM articles WHERE id = ?`).get(articleId);
+    if (!row) return res.status(404).json({ error: 'article not found' });
+
+    const dataUrl = base64Data.startsWith('data:') ? base64Data : `data:image/png;base64,${base64Data}`;
+
+    // Update meta with multi-slot images
+    let metaCur = row.meta ? JSON.parse(row.meta) : {};
+    if (!metaCur.imageUrls) metaCur.imageUrls = {};
+    metaCur.imageUrls[slot] = dataUrl;
+
+    db.prepare(`UPDATE articles SET meta = ? WHERE id = ?`).run(JSON.stringify(metaCur), articleId);
+
+    // If hero slot, also update main image_url
+    if (slot === 'hero') {
+      db.prepare(`UPDATE articles SET image_url = ? WHERE id = ?`).run(dataUrl, articleId);
+    }
+
+    res.json({
+      success: true,
+      imageUrl: dataUrl,
+      message: `Image uploaded to slot: ${slot}`
+    });
+  } catch (e) {
+    console.error('[upload-image-slot]', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// =======================================================
+// MULTI-SLOT IMAGE DELETE
+// =======================================================
+app.post('/api/delete-image-slot', async (req, res) => {
+  const { articleId, slot = 'hero' } = req.body;
+  if (!articleId) {
+    return res.status(400).json({ error: 'articleId required' });
+  }
+
+  try {
+    const row = db.prepare(`SELECT * FROM articles WHERE id = ?`).get(articleId);
+    if (!row) return res.status(404).json({ error: 'article not found' });
+
+    let metaCur = row.meta ? JSON.parse(row.meta) : {};
+    if (metaCur.imageUrls && metaCur.imageUrls[slot]) {
+      delete metaCur.imageUrls[slot];
+    }
+    db.prepare(`UPDATE articles SET meta = ? WHERE id = ?`).run(JSON.stringify(metaCur), articleId);
+
+    // If hero slot, also clear main image_url
+    if (slot === 'hero') {
+      db.prepare(`UPDATE articles SET image_url = NULL WHERE id = ?`).run(articleId);
+    }
+
+    res.json({
+      success: true,
+      message: `Image deleted from slot: ${slot}`
+    });
+  } catch (e) {
+    console.error('[delete-image-slot]', e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -1383,7 +1619,10 @@ app.get('/api/features', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`NOTE BUZZ ENGINE v3.3.4 listening on 0.0.0.0:${PORT}`);
+  console.log(`NOTE BUZZ ENGINE v3.3.7 listening on 0.0.0.0:${PORT}`);
   console.log(`[boot] RENDER=${process.env.RENDER} NODE_ENV=${process.env.NODE_ENV} DB_PATH=${DB_PATH} cwd=${process.cwd()}`);
-  console.log(`[features] image=${HAS_OPENAI} xapi=${HAS_X_API} auth=${!!APP_PASSWORD}`);
+  console.log(`[features] image(OpenAI)=${HAS_OPENAI} anthropic=${!!process.env.ANTHROPIC_API_KEY} xapi=${HAS_X_API} auth=${!!APP_PASSWORD}`);
+  if (!HAS_OPENAI && process.env.RENDER === 'true') {
+    console.log('[hint] OPENAI_API_KEY が無いため DALL·E 画像はスキップ。Render の Environment に追加して再デプロイ。');
+  }
 });
