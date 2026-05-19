@@ -2470,13 +2470,21 @@ function closeMobileQuick() {
   document.body.style.overflow = '';
 }
 
-// モバイルで自動的にクイックモード表示
-if (window.innerWidth <= 768 && !sessionStorage.getItem('nbe_no_quick')) {
+// モバイル: クイックモードは手動切替（自動起動で白画面になる問題を修正）
+function openMobileQuick() {
+  document.getElementById('mobileQuickMode').style.display = '';
+  document.body.style.overflow = 'hidden';
+}
+if (window.innerWidth <= 960) {
   window.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => {
-      document.getElementById('mobileQuickMode').style.display = '';
-      document.body.style.overflow = 'hidden';
-    }, 300);
+    const bar = document.getElementById('mobileStickyBar');
+    if (bar) {
+      const qBtn = document.createElement('button');
+      qBtn.textContent = '📱 クイック生成';
+      qBtn.style.cssText = 'margin-left:8px;padding:10px 16px;background:#fff;border:1.5px solid #2949d8;border-radius:8px;color:#2949d8;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit';
+      qBtn.onclick = openMobileQuick;
+      bar.appendChild(qBtn);
+    }
   });
 }
 </script>
